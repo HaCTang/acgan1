@@ -47,6 +47,8 @@ class Discriminator(nn.Module):
         # self.lin = nn.Linear(sum(num_filters), num_classes)
         # self.softmax = nn.LogSoftmax()
 
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+
         # self.init_parameters()
 
     def forward(self, x, class_label):
@@ -91,6 +93,49 @@ class Discriminator(nn.Module):
     #     for param in self.parameters():
     #         param.data.uniform_(-0.05, 0.05)
 
+    def compute_loss(self, real_fake_pred, real_fake_target, class_pred, class_target):
+        """
+        Discriminator loss combines real/fake classification loss and class prediction loss.
+        
+        Args:
+            real_fake_pred: (N, 1) - Predictions for real/fake classification
+            real_fake_target: (N, 1) - Ground truth for real/fake classification
+            class_pred: (N, num_classes) - Predictions for class classification
+            class_target: (N, ) - Ground truth class labels
+        """
+        real_fake_loss = F.cross_entropy(real_fake_pred, real_fake_target)
+        class_loss = F.cross_entropy(class_pred, class_target)
+        
+        l2_loss = 0
+        for param in self.parameters():
+            l2_loss += torch.norm(param, p=2)
+        l2_loss = self.l2_reg_lambda * l2_loss
+
+        # # Wasserstein loss (simplified, adjust according to the exact TF implementation)
+        # scores_neg = real_fake_pred[real_fake_target == 0]  # Fake scores
+        # scores_pos = real_fake_pred[real_fake_target == 1]  # Real scores
+        # wgan_loss = torch.abs(torch.mean(scores_neg) - torch.mean(scores_pos))
+        # wgan_loss = self.wgan_reg_lambda * wgan_loss
+        
+        total_loss = real_fake_loss + class_loss + l2_loss      
+        return total_loss
+
+    def train_step(self, x, class_label, real_fake_labels, class_labels, optimizer):
+        self.train()
+        self.optimizer.zero_grad()
+
+        # Forward pass
+        real_fake_output, class_output = self.forward(x, class_label)
+
+        # Calculate loss
+        loss = self.compute_loss(real_fake_output, class_output, real_fake_labels, class_labels)
+
+        # Backward pass
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
+        self.optimizer.step()
+
+        return loss.item() 
 
     def highway_fn(self, input_, size, num_layers=1, bias=-2.0, f=F.relu):
         """

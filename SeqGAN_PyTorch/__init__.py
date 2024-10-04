@@ -133,15 +133,19 @@ class ACSeqGAN(object):
             self.d_dropout = params['d_dropout']
         else:
             self.d_dropout = 0.75
+<<<<<<< HEAD
         if 'd_grad_clip' in params:
             self.d_grad_clip = params['d_grad_clip']
         else:
             self.d_grad_clip = 1.0
+=======
+>>>>>>> b594693170c35e64bbff3b586c9d8a6b2a38966b
         if 'd_l2reg' in params:
             self.d_l2reg = params['d_l2reg']
         else:
             self.d_l2reg = 0.2
         
+<<<<<<< HEAD
         #其它参数
         if 'START_TOKEN' in params:
             self.START_TOKEN = params['START_TOKEN']
@@ -150,6 +154,8 @@ class ACSeqGAN(object):
         if 'MAX_LENGTH' in params:
             self.MAX_LENGTH = params['MAX_LENGTH']
 
+=======
+>>>>>>> b594693170c35e64bbff3b586c9d8a6b2a38966b
         global mm
         if metrics_module == 'mol_metrics':
             mm = mol_metrics
@@ -227,7 +233,11 @@ class ACSeqGAN(object):
             params = ['SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_emb_num', 'd_num_classes', 'd_filter_sizes',
+<<<<<<< HEAD
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
+=======
+                      'd_num_filters', 'd_dropout', 'd_l2reg', 
+>>>>>>> b594693170c35e64bbff3b586c9d8a6b2a38966b
                       'g_emb_dim','g_hidden_dim', 'g_sequence_len', 
                       'POSITIVE_FILE', 'NEGATIVE_FILE',
                       'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH'
@@ -239,9 +249,15 @@ class ACSeqGAN(object):
                 print('{}:   {}'.format(string, value))
 
         # Set model
+<<<<<<< HEAD
         self.gen_loader = GenDataIter(self.BATCH_SIZE)
         self.dis_loader = DisDataIter()
         self.mle_loader = GenDataIter(self.BATCH_SIZE)
+=======
+        self.gen_loader = GenDataIter(self.GEN_BATCH_SIZE)
+        self.dis_loader = DisDataIter()
+        self.mle_loader = GenDataIter(self.GEN_BATCH_SIZE)
+>>>>>>> b594693170c35e64bbff3b586c9d8a6b2a38966b
         # if self.WGAN:
         #     self.generator = WGenerator(self.NUM_EMB, self.GEN_BATCH_SIZE,
         #                                 self.GEN_EMB_DIM, self.GEN_HIDDEN_DIM,
@@ -264,11 +280,19 @@ class ACSeqGAN(object):
             sequence_length=self.MAX_LENGTH,
             num_classes=2,
             vocab_size=self.NUM_EMB,
+<<<<<<< HEAD
             embedding_size=self.d_emb_dim,
             filter_sizes=self.d_filter_sizes,
             num_filters=self.d_num_filters,
             l2_reg_lambda=self.d_l2reg,
             grad_clip=self.d_grad_clip)
+=======
+            embedding_size=self.DIS_EMB_DIM,
+            filter_sizes=self.DIS_FILTER_SIZES,
+            num_filters=self.DIS_NUM_FILTERS,
+            l2_reg_lambda=self.DIS_L2REG,
+            grad_clip=self.DIS_GRAD_CLIP)
+>>>>>>> b594693170c35e64bbff3b586c9d8a6b2a38966b
         
         # # Set up PyTorch training
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

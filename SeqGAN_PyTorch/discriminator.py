@@ -179,3 +179,7 @@ class Discriminator(nn.Module):
         linear_layer = nn.Linear(input_size, output_size)
 
         return linear_layer(input_)
+
+'''
+buhuile
+'''

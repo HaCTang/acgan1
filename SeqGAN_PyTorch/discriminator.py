@@ -180,7 +180,3 @@ class Discriminator(nn.Module):
 
         return linear_layer(input_)
 
-
-'''
-test
-'''

@@ -58,10 +58,8 @@ class TargetLSTM(nn.Module):
         return pred.view(x.size(0), x.size(1), -1), hidden
 
     def init_hidden(self, batch_size):
-        h = Variable(torch.zeros((1, batch_size, self.hidden_dim)))
-        c = Variable(torch.zeros((1, batch_size, self.hidden_dim)))
-        if self.use_cuda:
-            h, c = h.cuda(), c.cuda()
+        h = Variable(torch.zeros((1, batch_size, self.hidden_dim))).to('cuda' if self.use_cuda else 'cpu')
+        c = Variable(torch.zeros((1, batch_size, self.hidden_dim))).to('cuda' if self.use_cuda else 'cpu')
         return h, c
 
     # def init_params(self):
@@ -69,10 +67,10 @@ class TargetLSTM(nn.Module):
     #         param.data.normal_(0, 1)
     
     def generate(self, class_label):
-        gen_x = torch.zeros((self.batch_size, self.sequence_length), dtype=torch.long)
+        gen_x = torch.zeros((self.batch_size, self.sequence_length), dtype=torch.long).to('cuda' if self.use_cuda else 'cpu')
         hidden = self.init_hidden(self.batch_size)
 
-        x_t = torch.full((self.batch_size,), self.start_token, dtype=torch.long)
+        x_t = torch.full((self.batch_size,), self.start_token, dtype=torch.long).to('cuda' if self.use_cuda else 'cpu')
         for i in range(self.sequence_length):
             x_t_embedded = self.emb(x_t).unsqueeze(1)  # [batch_size, 1, emb_dim]
             class_emb = self.class_emb(class_label).unsqueeze(1)  # [batch_size, 1, emb_dim]
@@ -103,12 +101,12 @@ if __name__ == "__main__":
     num_classes = 10
     use_cuda = torch.cuda.is_available()
 
-    model = TargetLSTM(num_emb, batch_size, emb_dim, hidden_dim, sequence_length, start_token, num_classes, use_cuda)
+    model = TargetLSTM(num_emb, batch_size, emb_dim, hidden_dim, sequence_length, start_token, num_classes, use_cuda).to('cuda' if use_cuda else 'cpu')
     optimizer = optim.Adam(model.parameters(), lr=0.01)
 
     # Dummy data for pretraining
-    x = torch.randint(0, num_emb, (batch_size, sequence_length), dtype=torch.long)
-    class_label = torch.randint(0, num_classes, (batch_size,), dtype=torch.long)
+    x = torch.randint(0, num_emb, (batch_size, sequence_length), dtype=torch.long).to('cuda' if use_cuda else 'cpu')
+    class_label = torch.randint(0, num_classes, (batch_size,), dtype=torch.long).to('cuda' if use_cuda else 'cpu')
     pretrain_loss = model.pretrain_loss(x, class_label)
 
     optimizer.zero_grad()
@@ -116,8 +114,8 @@ if __name__ == "__main__":
     optimizer.step()
 
     # Generate sequences
-    generated_sequences = model.generate(class_label)
-    print(generated_sequences)
+    generated_sequences, label = model.generate(class_label)
+    print(generated_sequences, label)
 
 
     # def step(self, x, class_label, h, c):

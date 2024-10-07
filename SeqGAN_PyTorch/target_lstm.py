@@ -35,6 +35,7 @@ class TargetLSTM(nn.Module):
         # LSTM for sequence generation
         self.lstm = nn.LSTM(emb_dim * 2, hidden_dim, batch_first=True)  # Concatenate token and class embeddings
         self.lin = nn.Linear(hidden_dim, num_emb)
+        self.classifier = nn.Linear(hidden_dim, num_classes) # Classifier for class label prediction
         
         # self.init_params()
 
@@ -55,7 +56,8 @@ class TargetLSTM(nn.Module):
         output, hidden = self.lstm(combined_emb, hidden)  # Pass through LSTM
         
         pred = self.lin(output.contiguous().view(-1, self.hidden_dim))
-        return pred.view(x.size(0), x.size(1), -1), hidden
+        class_logits = self.classifier(output[:, -1, :])  # Predict class label from the last output
+        return pred.view(x.size(0), x.size(1), -1), class_logits, hidden
 
     def init_hidden(self, batch_size):
         h = Variable(torch.zeros((1, batch_size, self.hidden_dim))).to('cuda' if self.use_cuda else 'cpu')
@@ -84,10 +86,16 @@ class TargetLSTM(nn.Module):
         return gen_x, class_label
 
     def pretrain_loss(self, x, class_label):
-        logits, _ = self.forward(x, class_label, self.init_hidden(x.size(0)))  # [batch_size, sequence_length, num_emb]
+        logits, class_logits, _ = self.forward(x, class_label, self.init_hidden(x.size(0)))  # [batch_size, sequence_length, num_emb]
         logits = logits.view(-1, self.num_emb)  # [batch_size * sequence_length, num_emb]
         targets = x.view(-1)  # [batch_size * sequence_length]
-        loss = F.cross_entropy(logits, targets)
+        token_loss = F.cross_entropy(logits, targets)
+
+        # Class label prediction loss
+        class_loss = F.cross_entropy(class_logits, class_label)
+
+        # Total loss
+        loss = token_loss + class_loss
         return loss
 
 # Example usage
@@ -114,8 +122,8 @@ if __name__ == "__main__":
     optimizer.step()
 
     # Generate sequences
-    generated_sequences, label = model.generate(class_label)
-    print(generated_sequences, label)
+    generated_sequences = model.generate(class_label)
+    print(generated_sequences)
 
 
     # def step(self, x, class_label, h, c):

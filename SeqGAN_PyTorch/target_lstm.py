@@ -24,7 +24,7 @@ class TargetLSTM(nn.Module):
         self.start_token = start_token
         self.num_classes = num_classes
         self.use_cuda = use_cuda
-        self.temperature = 1.0
+        # self.temperature = 1.0
 
         torch.manual_seed(66)
         
@@ -95,7 +95,7 @@ class TargetLSTM(nn.Module):
         class_loss = F.cross_entropy(class_logits, class_label)
 
         # Total loss
-        loss = token_loss + class_loss
+        loss = 0.5(token_loss + class_loss)
         return loss
 
 # Example usage

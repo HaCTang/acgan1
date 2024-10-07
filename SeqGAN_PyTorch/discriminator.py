@@ -43,7 +43,7 @@ class Discriminator(nn.Module):
 
         # Linear layers for Real/Fake classification and Class classification
         self.lin_real_fake = nn.Linear(sum(num_filters), 1)  # Binary output for real/fake
-        self.lin_class = nn.Linear(sum(num_filters), num_classes)  # Class output
+        self.classifier = nn.Linear(sum(num_filters), num_classes)  # Class output
         # self.lin = nn.Linear(sum(num_filters), num_classes)
         # self.softmax = nn.LogSoftmax()
 
@@ -86,7 +86,7 @@ class Discriminator(nn.Module):
         # Real/Fake classification
         real_fake_output = torch.sigmoid(self.lin_real_fake(pred))  # Binary classification (real/fake)
         # Class prediction
-        class_output = self.lin_class(pred)  # Class classification (multiclass)
+        class_output = self.classifier(pred)  # Class classification (multiclass)
         return real_fake_output, class_output
 
     # def init_parameters(self):
@@ -117,7 +117,7 @@ class Discriminator(nn.Module):
         # wgan_loss = torch.abs(torch.mean(scores_neg) - torch.mean(scores_pos))
         # wgan_loss = self.wgan_reg_lambda * wgan_loss
         
-        total_loss = real_fake_loss + class_loss + l2_loss      
+        total_loss = 0.5 * (real_fake_loss + class_loss) + l2_loss      
         return total_loss
 
     def train_step(self, x, class_label, real_fake_labels, class_labels, optimizer):

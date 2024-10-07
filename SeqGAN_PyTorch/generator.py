@@ -33,6 +33,7 @@ class Generator(nn.Module):
         self.lstm = nn.LSTM(emb_dim, hidden_dim, batch_first=True)
         self.lin = nn.Linear(hidden_dim, num_emb)
         self.softmax = nn.LogSoftmax()
+        self.classifier = nn.Linear(hidden_dim, num_classes)
         # self.init_params()
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
@@ -64,7 +65,8 @@ class Generator(nn.Module):
 
         output, hidden = self.lstm(combined_emb, hidden)
         pred = self.lin(output.contiguous().view(-1, self.hidden_dim))
-        return pred.view(x.size(0), x.size(1), -1), hidden
+        class_logits = self.classifier(output[:, -1, :]) 
+        return pred.view(x.size(0), x.size(1), -1), class_logits, hidden
         #return pred
 
     def generate(self, class_label):
@@ -89,7 +91,7 @@ class Generator(nn.Module):
             gen_x[:, i] = next_token.squeeze()
             x = next_token
 
-        return gen_x
+        return gen_x, class_label
 
     def pretrain_step(self, x, class_label):
         """
@@ -101,12 +103,14 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
 
         # Forward pass
-        logits, _ = self.forward(x, class_label, hidden)
+        logits, class_logits, _ = self.forward(x, class_label, hidden)
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
 
         # Calculate loss
-        loss = F.cross_entropy(logits, target)
+        token_loss = F.cross_entropy(logits, target)
+        class_loss = F.cross_entropy(class_logits, class_label)
+        loss = 0.5 * (token_loss + class_loss)
 
         # Backward pass
         loss.backward()
@@ -125,14 +129,16 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
 
         # Forward pass
-        logits, _ = self.forward(x, class_label, hidden)
+        logits, class_logits, _ = self.forward(x, class_label, hidden)
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
 
         # Calculate loss with rewards
         log_probs = F.log_softmax(logits, dim=-1)
         one_hot = F.one_hot(target, self.num_emb).float()
-        loss = -torch.sum(rewards.view(-1, 1) * one_hot * log_probs) / self.batch_size
+        token_loss = -torch.sum(rewards.view(-1, 1) * one_hot * log_probs) / self.batch_size
+        class_loss = F.cross_entropy(class_logits, class_label)
+        loss = 0.5 * (token_loss + class_loss)
 
         # Backward pass
         loss.backward()

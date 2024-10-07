@@ -34,6 +34,9 @@ class Generator(nn.Module):
         self.lin = nn.Linear(hidden_dim, num_emb)
         self.softmax = nn.LogSoftmax()
         self.classifier = nn.Linear(hidden_dim, num_classes)
+
+        self.adversarial_loss = F.binary_cross_entropy
+        self.auxiliary_loss = F.cross_entropy
         # self.init_params()
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)

@@ -98,6 +98,12 @@ class Discriminator(nn.Module):
             l2_loss += torch.norm(param, p=2)
         l2_loss = self.l2_reg_lambda * l2_loss
 
+        # # Wasserstein loss (simplified, adjust according to the exact TF implementation)
+        # scores_neg = scores[input_y == 0]
+        # scores_pos = scores[input_y == 1]
+        # wgan_loss = torch.abs(torch.mean(scores_neg) - torch.mean(scores_pos))
+        # wgan_loss = self.wgan_reg_lambda * wgan_loss
+
         total_loss = 0.5 * (real_fake_loss + class_loss) + l2_loss      
         return total_loss
 

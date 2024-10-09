@@ -30,12 +30,12 @@ class Generator(nn.Module):
         self.emb = nn.Embedding(num_emb, emb_dim)
         self.class_emb = nn.Embedding(num_classes, emb_dim) # Class embedding
 
-        self.lstm = nn.LSTM(emb_dim, hidden_dim, batch_first=True)
+        self.lstm = nn.LSTM(emb_dim * 2, hidden_dim, batch_first=True)
         self.lin = nn.Linear(hidden_dim, num_emb)
         self.softmax = nn.LogSoftmax()
         self.classifier = nn.Linear(hidden_dim, num_classes)
 
-        self.adversarial_loss = F.binary_cross_entropy
+        self.adversarial_loss = F.cross_entropy
         self.auxiliary_loss = F.cross_entropy
         # self.init_params()
 
@@ -78,7 +78,7 @@ class Generator(nn.Module):
         """
         # Initialize input and hidden states
         gen_x = torch.zeros(self.batch_size, self.sequence_length).long()
-        hidden = self.init_hidden()
+        hidden = self.init_hidden(self.batch_size)
 
         # Start token input
         x = torch.tensor([self.start_token] * self.batch_size).unsqueeze(1)  # [batch_size, 1]
@@ -88,7 +88,7 @@ class Generator(nn.Module):
 
         # Generate sequence
         for i in range(self.sequence_length):
-            logits, hidden = self.forward(x, class_label, hidden)
+            logits, _, hidden = self.forward(x, class_label, hidden)
             probs = F.softmax(logits[:, -1, :], dim=-1)  # [batch_size, num_emb]
             next_token = Categorical(probs).sample().unsqueeze(1)  # [batch_size, 1]
             gen_x[:, i] = next_token.squeeze()
@@ -111,8 +111,8 @@ class Generator(nn.Module):
         target = x.view(-1)  # [batch_size * seq_len]
 
         # Calculate loss
-        token_loss = F.cross_entropy(logits, target)
-        class_loss = F.cross_entropy(class_logits, class_label)
+        token_loss = self.adversarial_loss(logits, target)
+        class_loss = self.auxiliary_loss(class_logits, class_label)
         loss = 0.5 * (token_loss + class_loss)
 
         # Backward pass
@@ -132,7 +132,7 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
 
         # Forward pass
-        logits, class_logits, _ = self.forward(x, class_label, hidden)
+        logits, _, _ = self.forward(x, class_label, hidden)
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
 
@@ -140,7 +140,11 @@ class Generator(nn.Module):
         log_probs = F.log_softmax(logits, dim=-1)
         one_hot = F.one_hot(target, self.num_emb).float()
         token_loss = -torch.sum(rewards.view(-1, 1) * one_hot * log_probs) / self.batch_size
-        class_loss = F.cross_entropy(class_logits, class_label)
+
+        # Calculate class loss at the end of the sequence
+        _, class_logits, _ = self.forward(x, class_label, hidden)
+        class_loss = self.auxiliary_loss(class_logits, class_label)
+
         loss = 0.5 * (token_loss + class_loss)
 
         # Backward pass
@@ -149,6 +153,43 @@ class Generator(nn.Module):
         self.optimizer.step()
 
         return loss.item()
+
+def test_generator():
+    # Hyperparameters for testing
+    num_emb = 10
+    batch_size = 4
+    emb_dim = 8
+    hidden_dim = 16
+    num_classes = 3
+    use_cuda = False
+    sequence_length = 5
+    start_token = 0
+    learning_rate = 0.001
+
+    # Initialize generator
+    generator = Generator(num_emb, batch_size, emb_dim, hidden_dim, num_classes, use_cuda, 
+                          sequence_length, start_token, learning_rate)
+
+    # Generate sample class labels
+    class_labels = torch.randint(0, num_classes, (batch_size,))
+
+    # Test generate function
+    generated_seq, generated_labels = generator.generate(class_labels)
+    print("Generated Sequence:", generated_seq)
+    print("Generated Labels:", generated_labels)
+
+    # Create random input sequence and class labels for pretrain step
+    input_seq = torch.randint(0, num_emb, (batch_size, sequence_length))
+    pretrain_loss = generator.pretrain_step(input_seq, class_labels)
+    print("Pretrain Loss:", pretrain_loss)
+
+    # Create random rewards for train step
+    rewards = torch.rand(batch_size, sequence_length)
+    train_loss = generator.train_step(input_seq, class_labels, rewards)
+    print("Train Loss:", train_loss)
+
+if __name__ == "__main__":
+    test_generator()
 
     # def step(self, x, class_label, h, c):
     #     """

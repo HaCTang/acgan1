@@ -107,7 +107,7 @@ class Discriminator(nn.Module):
         total_loss = 0.5 * (real_fake_loss + class_loss) + l2_loss      
         return total_loss
 
-    def train_step(self, x, class_label, real_fake_labels, class_labels):
+    def train_step(self, x, real_fake_labels, class_labels):
         self.train()
         self.optimizer.zero_grad()
 

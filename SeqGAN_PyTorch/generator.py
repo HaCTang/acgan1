@@ -132,7 +132,7 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
 
         # Forward pass
-        logits, _, _ = self.forward(x, class_label, hidden)
+        logits, class_logits, _ = self.forward(x, class_label, hidden)
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
 
@@ -141,8 +141,8 @@ class Generator(nn.Module):
         one_hot = F.one_hot(target, self.num_emb).float()
         token_loss = -torch.sum(rewards.view(-1, 1) * one_hot * log_probs) / self.batch_size
 
-        # Calculate class loss at the end of the sequence
-        _, class_logits, _ = self.forward(x, class_label, hidden)
+        # # Calculate class loss at the end of the sequence
+        # _, class_logits, _ = self.forward(x, class_label, hidden)
         class_loss = self.auxiliary_loss(class_logits, class_label)
 
         loss = 0.5 * (token_loss + class_loss)

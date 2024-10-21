@@ -292,7 +292,442 @@ class ACSeqGAN(object):
         #     from torch.utils.tensorboard import SummaryWriter
         #     self.tb_writer = SummaryWriter(log_dir=self.CHK_PATH)
 
-    
+    def set_training_program(self, metrics=None, steps=None):
+        """Sets a program of metrics and epochs
+        for training the model and generating molecules.
+
+        Arguments
+        -----------
+
+            - metrics. List of metrics. Each element represents
+            the metric used with a particular set of epochs. Its
+            length must coincide with the steps list.
+
+            - steps. List of epoch sets. Each element represents
+            the number of epochs for which a given metric will
+            be used. Its length must coincide with the steps list.
+
+        Note
+        -----------
+
+            The program will crash if both lists have different
+            lengths.
+
+        """
+
+        # Raise error if the lengths do not match
+        if len(metrics) != len(steps):
+            return ValueError('Unmatching lengths in training program.')
+
+        # Set important parameters
+        self.TOTAL_BATCH = np.sum(np.asarray(steps))
+        self.METRICS = metrics
+
+        # Build the 'educative program'
+        self.EDUCATION = {}
+        i = 0
+        for j, stage in enumerate(steps):
+            for _ in range(stage):
+                self.EDUCATION[i] = metrics[j]
+                i += 1
+
+    def load_metrics(self):
+        """Loads the metrics."""
+
+        # Get the list of used metrics
+        met = list(set(self.METRICS))
+
+        # Execute the metrics loading
+        self.kwargs = {}
+        for m in met:
+            load_fun = self.LOADINGS[m]
+            args = load_fun()
+            if args is not None:
+                if isinstance(args, tuple):
+                    self.kwargs[m] = {args[0]: args[1]}
+                elif isinstance(args, list):
+                    fun_args = {}
+                    for arg in args:
+                        fun_args[arg[0]] = arg[1]
+                    self.kwargs[m] = fun_args
+            else:
+                self.kwargs[m] = None
+
+    def load_prev_pretraining(self, ckpt=None):
+        """
+        Loads a previous pretraining.
+
+        Arguments
+        -----------
+
+            - ckpt. String pointing to the ckpt file. By default,
+            'checkpoints/name_pretrain/pretrain_ckpt' is assumed.
+
+        Note
+        -----------
+
+            The models are stored by the Tensorflow API backend. This
+            will generate various files, like in the following ls:
+
+                checkpoint
+                pretrain_ckpt.data-00000-of-00001
+                pretrain_ckpt.index
+                pretrain_ckpt.meta
+
+            In this case, ckpt = 'pretrain_ckpt'.
+
+        Note 2
+        -----------
+
+            Due to its structure, ORGANIC is very dependent on its
+            hyperparameters (for example, MAX_LENGTH defines the
+            embedding). Most of the errors with this function are
+            related to parameter mismatching.
+
+        """
+
+        # Set default checkpoint
+        if ckpt is None:
+            ckpt_dir = 'checkpoints/{}_pretrain'.format(self.PREFIX)
+            if not os.path.exists(ckpt_dir):
+                print('No pretraining data was found')
+                return
+            ckpt = os.path.join(ckpt_dir, 'pretrain_ckpt')
+
+        # Load from checkpoint
+        if os.path.isfile(ckpt):
+            checkpoint = torch.load(ckpt, map_location=self.device)
+            self.generator.load_state_dict(checkpoint['generator_state_dict'])
+            self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+            self.gen_optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+            self.dis_optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
+            print('Pretrain loaded from previous checkpoint {}'.format(ckpt))
+            self.PRETRAINED = True
+        else:
+            print('\t* No pre-training data found as {:s}.'.format(ckpt))
+
+    def load_prev_training(self, ckpt=None):
+        """
+        Loads a previous trained model.
+
+        Arguments
+        -----------
+
+            - ckpt. String pointing to the ckpt file. By default,
+            'checkpoints/name/pretrain_ckpt' is assumed.
+
+        Note 1
+        -----------
+
+            The models are stored by the Tensorflow API backend. This
+            will generate various files. An example ls:
+
+                checkpoint
+                validity_model_0.ckpt.data-00000-of-00001
+                validity_model_0.ckpt.index
+                validity_model_0.ckpt.meta
+                validity_model_100.ckpt.data-00000-of-00001
+                validity_model_100.ckpt.index
+                validity_model_100.ckpt.meta
+                validity_model_120.ckpt.data-00000-of-00001
+                validity_model_120.ckpt.index
+                validity_model_120.ckpt.meta
+                validity_model_140.ckpt.data-00000-of-00001
+                validity_model_140.ckpt.index
+                validity_model_140.ckpt.meta
+
+                    ...
+
+                validity_model_final.ckpt.data-00000-of-00001
+                validity_model_final.ckpt.index
+                validity_model_final.ckpt.meta
+
+            Possible ckpt values are 'validity_model_0', 'validity_model_140'
+            or 'validity_model_final'.
+
+        Note 2
+        -----------
+
+            Due to its structure, ORGANIC is very dependent on its
+            hyperparameters (for example, MAX_LENGTH defines the
+            embedding). Most of the errors with this function are
+            related to parameter mismatching.
+
+        """
+
+        # If there is no Rollout, add it
+        if not hasattr(self, 'rollout'):
+            self.rollout = Rollout(self.generator, 0.8, self.PAD_NUM)
+
+        # Set default checkpoint
+        if ckpt is None:
+            ckpt_dir = 'checkpoints/{}'.format(self.PREFIX)
+            if not os.path.exists(ckpt_dir):
+                print('No pretraining data was found')
+                return
+            ckpt = os.path.join(ckpt_dir, 'pretrain_ckpt')
+
+        if os.path.isfile(ckpt):
+            checkpoint = torch.load(ckpt, map_location=self.device)
+            self.generator.load_state_dict(checkpoint['generator_state_dict'])
+            self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
+            self.gen_optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+            self.dis_optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
+            print('Training loaded from previous checkpoint {}'.format(ckpt))
+            self.SESS_LOADED = True
+        else:
+            print('\t* No training checkpoint found as {:s}.'.format(ckpt))
+
+    def pretrain(self):
+        """Pretrains generator and discriminator."""
+
+        self.gen_loader.create_batches(self.positive_samples)
+        # results = OrderedDict({'exp_name': self.PREFIX})
+
+        if self.verbose:
+            print('\nPRETRAINING')
+            print('============================\n')
+            print('GENERATOR PRETRAINING')
+
+        t_bar = trange(self.PRETRAIN_GEN_EPOCHS)
+        for epoch in t_bar:
+            supervised_g_losses = []
+            self.gen_loader.reset_pointer()
+            for it in range(self.gen_loader.num_batch):
+                batch = self.gen_loader.next_batch()
+                _, g_loss, g_pred = self.generator.pretrain_step(self.sess,
+                                                                 batch)
+                supervised_g_losses.append(g_loss)
+            # print results
+            mean_g_loss = np.mean(supervised_g_losses)
+            t_bar.set_postfix(G_loss=mean_g_loss)
+
+        samples = self.generate_samples(self.SAMPLE_NUM)
+        self.mle_loader.create_batches(samples)
+
+        if self.LAMBDA != 0:
+
+            if self.verbose:
+                print('\nDISCRIMINATOR PRETRAINING')
+            t_bar = trange(self.PRETRAIN_DIS_EPOCHS)
+            for i in t_bar:
+                negative_samples = self.generate_samples(self.POSITIVE_NUM)
+                dis_x_train, dis_y_train = self.dis_loader.load_train_data(
+                    self.positive_samples, negative_samples)
+                dis_batches = self.dis_loader.batch_iter(
+                    zip(dis_x_train, dis_y_train), self.DIS_BATCH_SIZE,
+                    self.PRETRAIN_DIS_EPOCHS)
+                supervised_d_losses = []
+                for batch in dis_batches:
+                    x_batch, y_batch = zip(*batch)
+                    _, d_loss, _, _, _ = self.discriminator.train(
+                        self.sess, x_batch, y_batch, self.DIS_DROPOUT)
+
+                    supervised_d_losses.append(d_loss)
+                # print results
+                mean_d_loss = np.mean(supervised_d_losses)
+                t_bar.set_postfix(D_loss=mean_d_loss)
+
+        self.PRETRAINED = True
+        return
+
+    def generate_samples(self, num):
+        """Generates molecules.
+
+        Arguments
+        -----------
+
+            - num. Integer representing the number of molecules
+
+        """
+
+        generated_samples = []
+
+        for _ in range(int(num / self.GEN_BATCH_SIZE)):
+            generated_samples.extend(self.generator.generate(self.sess))
+
+        return generated_samples
+
+    def report_rewards(self, rewards, metric):
+        print('~~~~~~~~~~~~~~~~~~~~~~~~\n')
+        print('Reward: {}  (lambda={:.2f})'.format(metric, self.LAMBDA))
+        #np.set_printoptions(precision=3, suppress=True)
+        mean_r, std_r = np.mean(rewards), np.std(rewards)
+        min_r, max_r = np.min(rewards), np.max(rewards)
+        print('Stats: {:.3f} ({:.3f}) [{:3f},{:.3f}]'.format(
+            mean_r, std_r, min_r, max_r))
+        non_neg = rewards[rewards > 0.01]
+        if len(non_neg) > 0:
+            mean_r, std_r = np.mean(non_neg), np.std(non_neg)
+            min_r, max_r = np.min(non_neg), np.max(non_neg)
+            print('Valid: {:.3f} ({:.3f}) [{:3f},{:.3f}]'.format(
+                mean_r, std_r, min_r, max_r))
+        #np.set_printoptions(precision=8, suppress=False)
+        return
+
+    def train(self, ckpt_dir='checkpoints/'):
+        """Trains the model. If necessary, also includes pretraining."""
+
+        if not self.PRETRAINED and not self.SESS_LOADED:
+            self.generator.apply(self._weights_init)
+            self.discriminator.apply(self._weights_init)
+            self.pretrain()
+
+            if not os.path.exists(ckpt_dir):
+                os.makedirs(ckpt_dir)
+            ckpt_file = os.path.join(ckpt_dir, '{}_pretrain_ckpt.pth'.format(self.PREFIX))
+            torch.save({
+                'generator_state_dict': self.generator.state_dict(),
+                'discriminator_state_dict': self.discriminator.state_dict(),
+                'gen_optimizer_state_dict': self.gen_optimizer.state_dict(),
+                'dis_optimizer_state_dict': self.dis_optimizer.state_dict()
+            }, ckpt_file)
+            if self.verbose:
+                print('Pretrain saved at {}'.format(path))
+
+        if not hasattr(self, 'rollout'):
+            self.rollout = Rollout(self.generator, 0.8, self.PAD_NUM)
+
+        if self.verbose:
+            print('\nSTARTING TRAINING')
+            print('============================\n')
+
+        results_rows = []
+        losses = defaultdict(list)
+        for nbatch in tqdm(range(self.TOTAL_BATCH)):
+
+            results = OrderedDict({'exp_name': self.PREFIX})
+            metric = self.EDUCATION[nbatch]
+
+            if metric in self.AV_METRICS.keys():
+                reward_func = self.AV_METRICS[metric]
+            else:
+                raise ValueError('Metric {} not found!'.format(metric))
+
+            if self.kwargs[metric] is not None:
+
+                def batch_reward(samples, train_samples=None):
+                    decoded = [mm.decode(sample, self.ord_dict)
+                               for sample in samples]
+                    pct_unique = len(list(set(decoded))) / float(len(decoded))
+                    rewards = reward_func(decoded, self.train_samples,
+                                          **self.kwargs[metric])
+                    weights = np.array([pct_unique /
+                                        float(decoded.count(sample))
+                                        for sample in decoded])
+
+                    return rewards * weights
+
+            else:
+
+                def batch_reward(samples, train_samples=None):
+                    decoded = [mm.decode(sample, self.ord_dict)
+                               for sample in samples]
+                    pct_unique = len(list(set(decoded))) / float(len(decoded))
+                    rewards = reward_func(decoded, self.train_samples)
+                    weights = np.array([pct_unique /
+                                        float(decoded.count(sample))
+                                        for sample in decoded])
+
+                    return rewards * weights
+
+            if nbatch % 10 == 0:
+                gen_samples = self.generate_samples(self.BIG_SAMPLE_NUM)
+            else:
+                gen_samples = self.generate_samples(self.SAMPLE_NUM)
+            self.gen_loader.create_batches(gen_samples)
+            results['Batch'] = nbatch
+            print('Batch n. {}'.format(nbatch))
+            print('============================\n')
+            print('\nGENERATOR TRAINING')
+            print('============================\n')
+
+            # results
+            mm.compute_results(batch_reward,
+                               gen_samples, self.train_samples, self.ord_dict, results)
+
+            for it in range(self.GEN_ITERATIONS):
+                samples = self.generator.generate(self.sess)
+                rewards = self.rollout.get_reward(
+                    self.sess, samples, 16, self.discriminator,
+                    batch_reward, self.LAMBDA)
+                g_loss = self.generator.generator_step(
+                    self.sess, samples, rewards)
+                losses['G-loss'].append(g_loss)
+                self.generator.g_count = self.generator.g_count + 1
+                self.report_rewards(rewards, metric)
+
+            self.rollout.update_params()
+
+            # generate for discriminator
+            if self.LAMBDA != 0:
+                print('\nDISCRIMINATOR TRAINING')
+                print('============================\n')
+                for i in range(self.DIS_EPOCHS):
+                    print('Discriminator epoch {}...'.format(i + 1))
+
+                    negative_samples = self.generate_samples(self.POSITIVE_NUM)
+                    dis_x_train, dis_y_train = self.dis_loader.load_train_data(
+                        self.positive_samples, negative_samples)
+                    dis_batches = self.dis_loader.batch_iter(
+                        zip(dis_x_train, dis_y_train),
+                        self.DIS_BATCH_SIZE, self.DIS_EPOCHS
+                    )
+
+                    d_losses, ce_losses, l2_losses, w_loss = [], [], [], []
+                    for batch in dis_batches:
+                        x_batch, y_batch = zip(*batch)
+                        _, d_loss, ce_loss, l2_loss, w_loss = self.discriminator.train(
+                            self.sess, x_batch, y_batch, self.DIS_DROPOUT)
+                        d_losses.append(d_loss)
+                        ce_losses.append(ce_loss)
+                        l2_losses.append(l2_loss)
+
+                    losses['D-loss'].append(np.mean(d_losses))
+                    losses['CE-loss'].append(np.mean(ce_losses))
+                    losses['L2-loss'].append(np.mean(l2_losses))
+                    losses['WGAN-loss'].append(np.mean(l2_losses))
+
+                    self.discriminator.d_count = self.discriminator.d_count + 1
+
+                print('\nDiscriminator trained.')
+
+            results_rows.append(results)
+
+            # save model
+            if nbatch % self.EPOCH_SAVES == 0 or \
+               nbatch == self.TOTAL_BATCH - 1:
+
+                if results_rows is not None:
+                    df = pd.DataFrame(results_rows)
+                    df.to_csv('{}_results.csv'.format(
+                        self.PREFIX), index=False)
+                for key, val in losses.items():
+                    v_arr = np.array(val)
+                    np.save('{}_{}.npy'.format(self.PREFIX, key), v_arr)
+
+                if nbatch is None:
+                    label = 'final'
+                else:
+                    label = str(nbatch)
+
+                # save models
+                model_saver = tf.train.Saver()
+                ckpt_dir = self.CHK_PATH
+
+                if not os.path.exists(ckpt_dir):
+                    os.makedirs(ckpt_dir)
+                ckpt_file = os.path.join(ckpt_dir, '{}_{}.pth'.format(self.PREFIX, label))
+                torch.save({
+                    'generator_state_dict': self.generator.state_dict(),
+                    'discriminator_state_dict': self.discriminator.state_dict(),
+                    'gen_optimizer_state_dict': self.gen_optimizer.state_dict(),
+                    'dis_optimizer_state_dict': self.dis_optimizer.state_dict()
+                }, ckpt_file)
+                print('\nModel saved at {}'.format(ckpt_file))
+
+        print('\n######### FINISHED #########')
+
 
     # def train_epoch(self, model, data_iter, criterion, optimizer):
     #     total_loss = 0.

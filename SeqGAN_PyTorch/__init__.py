@@ -8,6 +8,7 @@ from collections import OrderedDict, defaultdict
 import numpy as np
 import random
 import dill as pickle
+from collections import Counter
 
 from SeqGAN_PyTorch.data_iter import GenDataIter, DisDataIter
 from SeqGAN_PyTorch.generator import Generator
@@ -60,6 +61,16 @@ class ACSeqGAN(object):
         # else:
         #     self.WGAN = False
 
+        if 'PRETRAIN_GEN_EPOCHS' in params:
+            self.PRETRAIN_GEN_EPOCHS = params['PRETRAIN_GEN_EPOCHS']
+        else:
+            self.PRETRAIN_GEN_EPOCHS = 240
+
+        if 'PRETRAIN_DIS_EPOCHS' in params:
+            self.PRETRAIN_DIS_EPOCHS = params['PRETRAIN_DIS_EPOCHS']
+        else:
+            self.PRETRAIN_DIS_EPOCHS = 50
+
         if 'SEED' in params:
             self.SEED = params['SEED']
         else:
@@ -88,15 +99,6 @@ class ACSeqGAN(object):
             self.PRE_EPOCH_NUM = 120
         else:
             self.NUM_CLASS = 2
-
-        if 'POSITIVE_FILE' in params:
-            self.POSITIVE_FILE = params['POSITIVE_FILE']
-        else:
-            raise ValueError('Positive file not specified.')
-        if 'NEGATIVE_FILE' in params:
-            self.NEGATIVE_FILE = 'gene.data'
-        else:
-            raise ValueError('Negative file not specified.')
         
         #Generator参数
         if 'g_emb_dim' in params:
@@ -181,22 +183,23 @@ class ACSeqGAN(object):
         self.NUM_EMB = len(self.char_dict)
         self.PAD_CHAR = self.ord_dict[self.NUM_EMB - 1]
         self.PAD_NUM = self.char_dict[self.PAD_CHAR]
-        self.DATA_LENGTH = max(map(len, self.train_samples))
+        self.DATA_LENGTH = max(map(len, self.train_samples[0]))
         print('Vocabulary:')
         print(list(self.char_dict.keys()))
         # If MAX_LENGTH has not been specified by the user, it
         # will be set as 1.5 times the maximum length in the
         # trining set.
         if not hasattr(self, 'MAX_LENGTH'):
-            self.MAX_LENGTH = int(len(max(self.train_samples, key=len)) * 1.5)
+            self.MAX_LENGTH = int(len(max(self.train_samples[0], key=len)) * 1.5)
 
         # Encode samples
         to_use = [sample for sample in self.train_samples
-                  if mm.verified_and_below(sample, self.MAX_LENGTH)]
-        self.positive_samples = [mm.encode(sam,
+                  if mm.verified_and_below(sample[0], self.MAX_LENGTH)]
+        self.positive_samples = [mm.encode(sam[0],
                                            self.MAX_LENGTH,
                                            self.char_dict) for sam in to_use]
         self.POSITIVE_NUM = len(self.positive_samples)
+        self.TYPE_NUM = Counter([sam[1] for sam in to_use]) # Number of samples per type
 
         # Print information
         if self.verbose:
@@ -207,11 +210,13 @@ class ACSeqGAN(object):
             print('Training set size        :   {} points'.format(
                 len(self.train_samples)))
             print('Max data length          :   {}'.format(self.MAX_LENGTH))
-            lens = [len(s) for s in to_use]
+            lens = [len(s[0]) for s in to_use]
             print('Avg Length to use is     :   {:2.2f} ({:2.2f}) [{:d},{:d}]'.format(
                 np.mean(lens), np.std(lens), np.min(lens), np.max(lens)))
             print('Num valid data points is :   {}'.format(
                 self.POSITIVE_NUM))
+            print('Num different samples is :   {}'.format(
+                self.TYPE_NUM))
             print('Size of alphabet is      :   {}'.format(self.NUM_EMB))
             print('')
 
@@ -224,12 +229,12 @@ class ACSeqGAN(object):
             #           'DIS_FILTER_SIZES', 'DIS_NUM_FILTERS',
             #           'DIS_DROPOUT', 'DIS_L2REG']
             
-            params = ['SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
+            params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS',
+                      'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_emb_num', 'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
                       'g_emb_dim','g_hidden_dim', 'g_sequence_len', 
-                      'POSITIVE_FILE', 'NEGATIVE_FILE',
                       'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH'
                       'SAMPLE_NUM', 'BIG_SAMPLE_NUM', 'LAMBDA']
 
@@ -287,44 +292,46 @@ class ACSeqGAN(object):
         #     from torch.utils.tensorboard import SummaryWriter
         #     self.tb_writer = SummaryWriter(log_dir=self.CHK_PATH)
 
-    def train_epoch(self, model, data_iter, criterion, optimizer):
-        total_loss = 0.
-        total_words = 0.
-        for (data, target) in data_iter:#tqdm(
-            #data_iter, mininterval=2, desc=' - Training', leave=False):
-            data = Variable(data)
-            target = Variable(target)
-            if self.cuda:
-                data, target = data.cuda(), target.cuda()
-            target = target.contiguous().view(-1)
-            pred = model.forward(data)
-            loss = criterion(pred, target)
-            total_loss += loss.item()
-            total_words += data.size(0) * data.size(1)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        data_iter.reset()
-        return math.exp(total_loss / total_words)
+    
 
-    def eval_epoch(self, model, data_iter, criterion):
-        total_loss = 0.
-        total_words = 0.
-        with torch.no_grad():
-            for (data, target) in data_iter:#tqdm(
-                #data_iter, mininterval=2, desc=' - Training', leave=False):
-                data = Variable(data)
-                target = Variable(target)
-                if self.cuda:
-                    data, target = data.cuda(), target.cuda()
-                target = target.contiguous().view(-1)
-                pred = model.forward(data)
-                loss = criterion(pred, target)
-                total_loss += loss.item()
-                total_words += data.size(0) * data.size(1)
-            data_iter.reset()
+    # def train_epoch(self, model, data_iter, criterion, optimizer):
+    #     total_loss = 0.
+    #     total_words = 0.
+    #     for (data, target) in data_iter:#tqdm(
+    #         #data_iter, mininterval=2, desc=' - Training', leave=False):
+    #         data = Variable(data)
+    #         target = Variable(target)
+    #         if self.cuda:
+    #             data, target = data.cuda(), target.cuda()
+    #         target = target.contiguous().view(-1)
+    #         pred = model.forward(data)
+    #         loss = criterion(pred, target)
+    #         total_loss += loss.item()
+    #         total_words += data.size(0) * data.size(1)
+    #         optimizer.zero_grad()
+    #         loss.backward()
+    #         optimizer.step()
+    #     data_iter.reset()
+    #     return math.exp(total_loss / total_words)
 
-        assert total_words > 0  # Otherwise NullpointerException
-        return math.exp(total_loss / total_words)
+    # def eval_epoch(self, model, data_iter, criterion):
+    #     total_loss = 0.
+    #     total_words = 0.
+    #     with torch.no_grad():
+    #         for (data, target) in data_iter:#tqdm(
+    #             #data_iter, mininterval=2, desc=' - Training', leave=False):
+    #             data = Variable(data)
+    #             target = Variable(target)
+    #             if self.cuda:
+    #                 data, target = data.cuda(), target.cuda()
+    #             target = target.contiguous().view(-1)
+    #             pred = model.forward(data)
+    #             loss = criterion(pred, target)
+    #             total_loss += loss.item()
+    #             total_words += data.size(0) * data.size(1)
+    #         data_iter.reset()
+
+    #     assert total_words > 0  # Otherwise NullpointerException
+    #     return math.exp(total_loss / total_words)
     
     

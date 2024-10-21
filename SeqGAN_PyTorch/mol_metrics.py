@@ -412,20 +412,27 @@ def load_train_data(filename):
     ext = filename.split(".")[-1]
     if ext == 'csv':
         return read_smiles_csv(filename)
-    if ext == 'smi':
-        return read_smi(filename)
+    # if ext == 'smi':
+    #     return read_smi(filename)
     else:
-        raise ValueError('data is not smi or csv!')
+        raise ValueError('data is not csv!')
     return
 
-
-def read_smiles_csv(filename):
-    # Assumes smiles is in column 0
+import pandas as pd
+def read_smiles_csv(filename)->list:
+    '''
+    list contain two dimensions: smiles and labels
+    '''
     with open(filename) as file:
-        reader = csv.reader(file)
-        smiles_idx = next(reader).index("smiles")
-        data = [row[smiles_idx] for row in reader]
+        df = pd.read_csv(file)
+        df['packed'] = df.apply(lambda row: [row['smiles'], row['label']], axis=1)
+        data = df['packed'].tolist() # list of [smiles, label]
     return data
+
+# current_directory = os.path.dirname(os.path.abspath(__file__))
+# parent_directory = os.path.join(current_directory, '..')
+# file_path = os.path.join(parent_directory, 'train_NAPro.csv')
+# print(read_smiles_csv(file_path))
 
 
 def save_smi(name, smiles):

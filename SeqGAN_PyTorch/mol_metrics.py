@@ -406,6 +406,9 @@ def decode(ords, ord_dict):
 
 
 def load_train_data(filename):
+    '''
+    file must contain two columns: smiles and labels
+    '''
     ext = filename.split(".")[-1]
     if ext == 'csv':
         return read_smiles_csv(filename)

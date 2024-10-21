@@ -292,6 +292,7 @@ class ACSeqGAN(object):
         #     from torch.utils.tensorboard import SummaryWriter
         #     self.tb_writer = SummaryWriter(log_dir=self.CHK_PATH)
 
+# todo: 以下函数未完成，需要再加一个参数，metrics用于classlabel的评价指标
     def set_training_program(self, metrics=None, steps=None):
         """Sets a program of metrics and epochs
         for training the model and generating molecules.

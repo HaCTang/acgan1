@@ -9,7 +9,7 @@ import tqdm
 import numpy as np
 import torch
 class GenDataIter(object):
-    """Data iterator to load multiple files, each file represents a different class."""
+    """Data iterator to load sample."""
     def __init__(self, batch_size):
         self.batch_size = batch_size
 

@@ -332,6 +332,7 @@ class ACSeqGAN(object):
                 self.EDUCATION[i] = metrics[j]
                 i += 1
 
+# todo: 以下函数未完成，需要再加一个参数，metrics用于classlabel的评价指标
     def load_metrics(self):
         """Loads the metrics."""
 
@@ -490,7 +491,7 @@ class ACSeqGAN(object):
             print('============================\n')
             print('GENERATOR PRETRAINING')
 
-        t_bar = trange(self.PRETRAIN_GEN_EPOCHS)
+        t_bar = trange(self.PRETRAIN_GEN_EPOCHS) #创建一个进度条
         for epoch in t_bar:
             supervised_g_losses = []
             self.gen_loader.reset_pointer()
@@ -569,9 +570,7 @@ class ACSeqGAN(object):
     def train(self, ckpt_dir='checkpoints/'):
         """Trains the model. If necessary, also includes pretraining."""
 
-        if not self.PRETRAINED and not self.SESS_LOADED:
-            self.generator.apply(self._weights_init)
-            self.discriminator.apply(self._weights_init)
+        if not self.PRETRAINED:
             self.pretrain()
 
             if not os.path.exists(ckpt_dir):

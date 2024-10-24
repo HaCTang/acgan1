@@ -110,7 +110,7 @@ class ACSeqGAN(object):
         if 'NUM_CLASS' in params:
             self.NUM_CLASS = params['NUM_CLASS']
         else:
-            self. = 2
+            self.NUM_CLASS = 2
         
         #Generator参数
         if 'g_emb_dim' in params:
@@ -156,6 +156,16 @@ class ACSeqGAN(object):
         else:
             self.d_l2reg = 0.2
         
+        #先验混合模型参数
+        if 'LAMBDA_1' in params:
+            self.LAMBDA_1 = params['LAMBDA_1']
+        else:
+            self.LAMBDA_1 = 0.5
+        if 'LAMBDA_2' in params:
+            self.LAMBDA_2 = params['LAMBDA_2']
+        else:
+            self.LAMBDA_2 = 0.5
+
         #其它参数
         if 'START_TOKEN' in params:
             self.START_TOKEN = params['START_TOKEN']
@@ -249,7 +259,7 @@ class ACSeqGAN(object):
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
                       'g_emb_dim','g_hidden_dim', 'g_sequence_len', 
                       'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH'
-                      'SAMPLE_NUM', 'BIG_SAMPLE_NUM', 'LAMBDA']
+                      'SAMPLE_NUM', 'BIG_SAMPLE_NUM', 'LAMBDA_1', 'LAMBDA_2']
 
             for param in params:
                 string = param + ' ' * (25 - len(param))
@@ -259,7 +269,7 @@ class ACSeqGAN(object):
         # Set model
         self.gen_loader = GenDataIter(self.BATCH_SIZE)
         self.dis_loader = DisDataIter()
-        self.mle_loader = GenDataIter(self.BATCH_SIZE)
+        self.mle_loader = GenDataIter(self.BATCH_SIZE)  # For MLE training, 暂时没用
         # if self.WGAN:
         #     self.generator = WGenerator(self.NUM_EMB, self.GEN_BATCH_SIZE,
         #                                 self.GEN_EMB_DIM, self.GEN_HIDDEN_DIM,
@@ -518,9 +528,9 @@ class ACSeqGAN(object):
             t_bar.set_postfix(G_loss=mean_g_loss)
 
         samples = self.generate_samples(self.GENERATED_NUM)
-        self.mle_loader.create_batches(samples)
+        self.mle_loader.create_batches(samples) # For MLE training, 暂时没用
 
-        if self.LAMBDA != 0:
+        if self.LAMBDA_1 != 0:
 
             if self.verbose:
                 print('\nDISCRIMINATOR PRETRAINING')

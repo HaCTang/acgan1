@@ -114,12 +114,12 @@ class DisDataIter(object):
         Returns input vectors, labels, vocabulary, and inverse vocabulary.
         """
         # Load and preprocess data
-        sentences, labels = self.load_data_and_labels(
+        classified_sentences, labels = self.load_data_and_labels(
             positive_file, negative_file)
         shuffle_indices = np.random.permutation(np.arange(len(labels)))
-        x_shuffled = sentences[shuffle_indices]
+        x_shuffled = classified_sentences[shuffle_indices]
         y_shuffled = labels[shuffle_indices]
-        self.sequence_length = 20
+        self.sequence_length = 20 
         return [x_shuffled, y_shuffled]
 
     def load_test_data(self, positive_file, test_file):

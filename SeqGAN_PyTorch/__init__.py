@@ -15,7 +15,7 @@ from SeqGAN_PyTorch.generator import Generator
 from SeqGAN_PyTorch.discriminator import Discriminator
 from SeqGAN_PyTorch.rollout import Rollout
 
-from rdkit import rdBASE
+# from rdkit import rdBASE
 import pandas as pd
 from tqdm import tqdm, trange
 import SeqGAN_PyTorch.mol_metrics
@@ -205,14 +205,15 @@ class ACSeqGAN(object):
         self.NUM_EMB = len(self.char_dict)
         self.PAD_CHAR = self.ord_dict[self.NUM_EMB - 1]
         self.PAD_NUM = self.char_dict[self.PAD_CHAR]
-        self.DATA_LENGTH = max(map(len, self.train_samples[0]))
+        self.molecules, _ = zip(*self.train_samples) # Extract molecules
+        self.DATA_LENGTH = max(map(len, self.molecules))
         print('Vocabulary:')
         print(list(self.char_dict.keys()))
         # If MAX_LENGTH has not been specified by the user, it
         # will be set as 1.5 times the maximum length in the
         # trining set.
         if not hasattr(self, 'MAX_LENGTH'):
-            self.MAX_LENGTH = int(len(max(self.train_samples[0], key=len)) * 1.5)
+            self.MAX_LENGTH = int(len(max(self.molecules, key=len)) * 1.5)
 
         # Encode samples
         to_use = [sample for sample in self.train_samples
@@ -285,14 +286,14 @@ class ACSeqGAN(object):
         #         wgan_reg_lambda=self.WGAN_REG_LAMBDA,
         #         grad_clip=self.DIS_GRAD_CLIP)
         # else:
-        self.generator = Generator(self.NUM_EMB, self.g_emb_dim,
+        self.generator = Generator(self.NUM_EMB, self.BATCH_SIZE, self.g_emb_dim,
                                    self.g_hidden_dim, self.NUM_CLASS, self.cuda,
                                    self.MAX_LENGTH, self.START_TOKEN)
         self.discriminator = Discriminator(
             sequence_length=self.MAX_LENGTH,
             num_classes=2,
             vocab_size=self.NUM_EMB,
-            embedding_size=self.d_emb_dim,
+            emb_dim=self.d_emb_dim,
             filter_sizes=self.d_filter_sizes,
             num_filters=self.d_num_filters,
             l2_reg_lambda=self.d_l2reg,
@@ -521,6 +522,11 @@ class ACSeqGAN(object):
             for it in range(self.gen_loader.num_batch):
                 batch = self.gen_loader.next_batch()
                 x, class_label = batch[:, :-1], batch[:, -1]  # Split batch into input sequences and class labels
+                
+                # Convert to tensors
+                x = torch.tensor(x, dtype=torch.long)
+                class_label = torch.tensor(class_label, dtype=torch.int64)
+
                 g_loss = self.generator.pretrain_step(x, class_label)
                 supervised_g_losses.append(g_loss)
             # print results
@@ -543,12 +549,19 @@ class ACSeqGAN(object):
                     zip(dis_x_train, dis_y_train), self.DIS_BATCH_SIZE,
                     self.PRETRAIN_DIS_EPOCHS)
                 supervised_d_losses = []
+
                 for batch in dis_batches:
                     x_batch, y_batch = zip(*batch)
-                    _, d_loss, _, _, _ = self.discriminator.train(
-                        self.sess, x_batch, y_batch, self.DIS_DROPOUT)
+                    x, x_label = zip(*x_batch)
 
+                    # Convert to tensors
+                    x = torch.tensor(x, dtype=torch.long)
+                    y_batch = torch.tensor(y_batch, dtype=torch.float)
+                    x_label = torch.tensor(x_label, dtype=torch.int64)
+
+                    d_loss = self.discriminator.train_step(x, y_batch, x_label)
                     supervised_d_losses.append(d_loss)
+
                 # print results
                 mean_d_loss = np.mean(supervised_d_losses)
                 t_bar.set_postfix(D_loss=mean_d_loss)

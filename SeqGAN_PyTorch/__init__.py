@@ -104,9 +104,13 @@ class ACSeqGAN(object):
         else:        
             self.VOCAB_SIZE = 5000
         if 'PRE_EPOCH_NUM' in params:
-            self.PRE_EPOCH_NUM = 120
+            self.PRE_EPOCH_NUM = params['PRE_EPOCH_NUM']
         else:
-            self.NUM_CLASS = 2
+            self.PRE_EPOCH_NUM = 120
+        if 'NUM_CLASS' in params:
+            self.NUM_CLASS = params['NUM_CLASS']
+        else:
+            self. = 2
         
         #Generator参数
         if 'g_emb_dim' in params:
@@ -239,7 +243,7 @@ class ACSeqGAN(object):
             
             params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS',
                       'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
-                      'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 
+                      'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 'NUM_CLASS',
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_emb_num', 'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
@@ -555,7 +559,9 @@ class ACSeqGAN(object):
         generated_samples = []
 
         for _ in range(int(num / self.GEN_BATCH_SIZE)):
-            generated_samples.extend(self.generator.generate(self.sess))
+            for class_label in range(self.NUM_CLASS):
+                gen_x, _ = self.generator.generate(class_label)
+                generated_samples.extend([gen_x, class_label])
 
         return generated_samples
 

@@ -86,6 +86,14 @@ class ACSeqGAN(object):
             self.TOTAL_BATCH = params['TOTAL_BATCH']
         else:
             self.TOTAL_BATCH = 200
+        if 'GEN_BATCH_SIZE' in params:
+            self.GEN_BATCH_SIZE = params['GEN_BATCH_SIZE']
+        else:
+            self.GEN_BATCH_SIZE = 64
+        if 'DIS_BATCH_SIZE' in params:
+            self.DIS_BATCH_SIZE = params['DIS_BATCH_SIZE']
+        else:
+            self.DIS_BATCH_SIZE = 64
         if 'GENERATED_NUM' in params:
             self.GENERATED_NUM = params['GENERATED_NUM']
         else:
@@ -231,6 +239,7 @@ class ACSeqGAN(object):
             
             params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS',
                       'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
+                      'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_emb_num', 'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
@@ -497,14 +506,14 @@ class ACSeqGAN(object):
             self.gen_loader.reset_pointer()
             for it in range(self.gen_loader.num_batch):
                 batch = self.gen_loader.next_batch()
-                _, g_loss, g_pred = self.generator.pretrain_step(self.sess,
-                                                                 batch)
+                x, class_label = batch[:, :-1], batch[:, -1]  # Split batch into input sequences and class labels
+                g_loss = self.generator.pretrain_step(x, class_label)
                 supervised_g_losses.append(g_loss)
             # print results
             mean_g_loss = np.mean(supervised_g_losses)
             t_bar.set_postfix(G_loss=mean_g_loss)
 
-        samples = self.generate_samples(self.SAMPLE_NUM)
+        samples = self.generate_samples(self.GENERATED_NUM)
         self.mle_loader.create_batches(samples)
 
         if self.LAMBDA != 0:

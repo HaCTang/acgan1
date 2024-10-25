@@ -16,7 +16,7 @@ class Discriminator(nn.Module):
     """
 
     def __init__(self, sequence_length, num_classes, vocab_size, emb_dim, filter_sizes, 
-                 num_filters, dropout, l2_reg_lambda=1.0, wgan_reg_lambda=1.0, grad_clip=1.0):
+                 num_filters, dropout=0.2, l2_reg_lambda=1.0, wgan_reg_lambda=1.0, grad_clip=1.0):
         super(Discriminator, self).__init__()
 
         self.sequence_length = sequence_length

@@ -154,5 +154,9 @@ data = data[(data['length'] > 10) & (data['length'] <= upper_bound)]
 print(data['length'].describe())
 print(data.head())
 data = data.drop(columns=['length'])
+#删除data['smiles']中所有含Se的分子
+data = data[~data['smiles'].str.contains('Se|se|Ge|Hf|Sb|Ni|Re|Ce|Ba|Cr|K|Ra|Be|La|Li|Sr|Al|Si|Sm|Gd|V|Ca|W|Ta|Os|Fe|Te|Lu|Ga|Mo|Ru|Rh|Tc|Mn|Cu|Zn|Bi|Pt|Pd|Ag|Au|Hg|Pb|Sn|As|Mg')]
+#将[Na+]删除， O=P([O-])(O)OP(=O)([O-])OP(=O)([O-])OCC1O[C@@H](c2ccccc2O)CC1O.[Na+].[Na+].[Na+]
+data['smiles'] = data['smiles'].str.replace('[Na+]', '')
 
 data.to_csv('train_NAPro.csv', index=False)

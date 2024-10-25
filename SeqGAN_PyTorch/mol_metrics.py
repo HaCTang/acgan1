@@ -316,7 +316,7 @@ def build_vocab(smiles=None, pad_char='_', start_char='^'):
     # branches
     chars = chars + ['(', ')']
     # cycles
-    chars = chars + ['1', '2', '3', '4', '5', '6', '7', ]
+    chars = chars + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '%', '0']
     # anit/clockwise
     chars = chars + ['@']
     # directional bonds
@@ -382,8 +382,12 @@ def encode(smi, max_len, char_dict):
             i = i + len(spec)
 
     new_smi = ''.join(new_chars)
-    return [char_dict[c] for c in pad(new_smi, max_len)]
-
+    # return [char_dict[c] for c in pad(new_smi, max_len)]
+    try:
+        return [char_dict[c] for c in pad(new_smi, max_len)]
+    except KeyError as e:
+        print(f"KeyError: {e}. The problematic SMILES string is: {smi}")
+        raise
 
 def decode(ords, ord_dict):
 

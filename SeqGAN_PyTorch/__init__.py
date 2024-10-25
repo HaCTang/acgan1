@@ -173,6 +173,11 @@ class ACSeqGAN(object):
             self.START_TOKEN = 0
         if 'MAX_LENGTH' in params:
             self.MAX_LENGTH = params['MAX_LENGTH']
+        if 'CHK_PATH' in params:
+            self.CHK_PATH = params['CHK_PATH']
+        else:
+            self.CHK_PATH = os.path.join(
+                os.getcwd(), 'checkpoints\{}'.format(self.PREFIX))
 
         global mm
         if metrics_module == 'mol_metrics':
@@ -218,9 +223,16 @@ class ACSeqGAN(object):
         # Encode samples
         to_use = [sample for sample in self.train_samples
                   if mm.verified_and_below(sample[0], self.MAX_LENGTH)]
+        # print(to_use)
         self.positive_samples = [mm.encode(sam[0],
                                            self.MAX_LENGTH,
                                            self.char_dict) for sam in to_use]
+        
+        # molecules_to_use, label_to_use = zip(*to_use)
+        # positive_molecules = [mm.encode(sam,
+        #                     self.MAX_LENGTH,
+        #                     self.char_dict) for sam in molecules_to_use]
+        # self.positive_samples = [list(item) for item in zip(positive_molecules, label_to_use)]
         self.POSITIVE_NUM = len(self.positive_samples)
         self.TYPE_NUM = Counter([sam[1] for sam in to_use]) # Number of samples per type
 
@@ -256,11 +268,11 @@ class ACSeqGAN(object):
                       'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
                       'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 'NUM_CLASS',
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
-                      'd_emb_num', 'd_num_classes', 'd_filter_sizes',
+                      'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
                       'g_emb_dim','g_hidden_dim', 'g_sequence_len', 
-                      'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH'
-                      'SAMPLE_NUM', 'BIG_SAMPLE_NUM', 'LAMBDA_1', 'LAMBDA_2']
+                      'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH', 
+                      'LAMBDA_1', 'LAMBDA_2']
 
             for param in params:
                 string = param + ' ' * (25 - len(param))
@@ -506,7 +518,7 @@ class ACSeqGAN(object):
 
     def pretrain(self):
         """Pretrains generator and discriminator."""
-
+        # print(self.positive_samples)
         self.gen_loader.create_batches(self.positive_samples)
         # results = OrderedDict({'exp_name': self.PREFIX})
 
@@ -521,10 +533,14 @@ class ACSeqGAN(object):
             self.gen_loader.reset_pointer()
             for it in range(self.gen_loader.num_batch):
                 batch = self.gen_loader.next_batch()
+这里有问题，batch里面没有带标签
                 x, class_label = batch[:, :-1], batch[:, -1]  # Split batch into input sequences and class labels
-                
+                print(x, class_label)
+
                 # Convert to tensors
-                x = torch.tensor(x, dtype=torch.long)
+                x = x.astype(np.int64)  # 将 x 转换为整数类型
+                x = torch.tensor(x, dtype=torch.int64)  # 将 x 转换为张量
+                class_label = class_label.astype(np.int64)
                 class_label = torch.tensor(class_label, dtype=torch.int64)
 
                 g_loss = self.generator.pretrain_step(x, class_label)
@@ -670,9 +686,9 @@ class ACSeqGAN(object):
                     return rewards * weights
 
             if nbatch % 10 == 0:
-                gen_samples = self.generate_samples(self.BIG_SAMPLE_NUM)
+                gen_samples = self.generate_samples(5*self.GENERATED_NUM)
             else:
-                gen_samples = self.generate_samples(self.SAMPLE_NUM)
+                gen_samples = self.generate_samples(self.GENERATED_NUM)
             self.gen_loader.create_batches(gen_samples)
             results['Batch'] = nbatch
             print('Batch n. {}'.format(nbatch))

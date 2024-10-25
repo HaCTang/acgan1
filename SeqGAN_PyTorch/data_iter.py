@@ -16,16 +16,26 @@ class GenDataIter(object):
     def create_batches(self, samples):
         self.num_batch = int(len(samples) / self.batch_size)
         samples = samples[:self.num_batch * self.batch_size]
-        self.sequence_batch = np.split(np.array(samples), self.num_batch, 0)
+        # self.sequence_batch = np.split(np.array(samples), self.num_batch, 0)
+        self.sequence_batch = [samples[i:i + self.batch_size] 
+                                for i in range(0, len(samples), self.batch_size)]
         self.pointer = 0
 
     def next_batch(self):
         ret = self.sequence_batch[self.pointer]
         self.pointer = (self.pointer + 1) % self.num_batch
-        return ret
-
+        # return ret
+        return [[item[0], item[1]] for item in ret]  # Return a 3D list with strings and labels separately
+        
     def reset_pointer(self):
         self.pointer = 0
+
+    def batch_to_tensor(self, batch):
+        x, class_label = zip(*batch)
+        x = torch.tensor(x)
+        class_label = torch.tensor(class_label)
+        return x, class_label
+
     # def __init__(self, data_files, batch_size):
     #     super(GenDataIter, self).__init__()
     #     self.batch_size = batch_size

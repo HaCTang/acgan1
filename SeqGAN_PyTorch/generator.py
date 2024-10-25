@@ -161,7 +161,7 @@ def test_generator():
     emb_dim = 8
     hidden_dim = 16
     num_classes = 3
-    use_cuda = False
+    use_cuda = True
     sequence_length = 5
     start_token = 0
     learning_rate = 0.001

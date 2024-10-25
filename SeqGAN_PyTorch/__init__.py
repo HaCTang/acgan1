@@ -223,16 +223,16 @@ class ACSeqGAN(object):
         # Encode samples
         to_use = [sample for sample in self.train_samples
                   if mm.verified_and_below(sample[0], self.MAX_LENGTH)]
-        # print(to_use)
-        self.positive_samples = [mm.encode(sam[0],
-                                           self.MAX_LENGTH,
-                                           self.char_dict) for sam in to_use]
-        
-        # molecules_to_use, label_to_use = zip(*to_use)
-        # positive_molecules = [mm.encode(sam,
-        #                     self.MAX_LENGTH,
-        #                     self.char_dict) for sam in molecules_to_use]
-        # self.positive_samples = [list(item) for item in zip(positive_molecules, label_to_use)]
+        # self.positive_samples1 = [mm.encode(sam[0],
+        #                                    self.MAX_LENGTH,
+        #                                    self.char_dict) for sam in to_use]
+        molecules_to_use, label_to_use = zip(*to_use)
+        positive_molecules = [mm.encode(sam,
+                            self.MAX_LENGTH,
+                            self.char_dict) for sam in molecules_to_use]
+        self.positive_samples = [list(item) for item in zip(positive_molecules, label_to_use)]
+        # print("positive_samples:", self.positive_samples)
+
         self.POSITIVE_NUM = len(self.positive_samples)
         self.TYPE_NUM = Counter([sam[1] for sam in to_use]) # Number of samples per type
 
@@ -533,16 +533,9 @@ class ACSeqGAN(object):
             self.gen_loader.reset_pointer()
             for it in range(self.gen_loader.num_batch):
                 batch = self.gen_loader.next_batch()
-这里有问题，batch里面没有带标签
-                x, class_label = batch[:, :-1], batch[:, -1]  # Split batch into input sequences and class labels
-                print(x, class_label)
-
-                # Convert to tensors
-                x = x.astype(np.int64)  # 将 x 转换为整数类型
-                x = torch.tensor(x, dtype=torch.int64)  # 将 x 转换为张量
-                class_label = class_label.astype(np.int64)
-                class_label = torch.tensor(class_label, dtype=torch.int64)
-
+                x, class_label = self.gen_loader.batch_to_tensor(batch)
+                print("x:", x)
+                print("class_label:", class_label)
                 g_loss = self.generator.pretrain_step(x, class_label)
                 supervised_g_losses.append(g_loss)
             # print results

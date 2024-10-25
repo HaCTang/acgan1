@@ -160,3 +160,7 @@ data = data[~data['smiles'].str.contains('Se|se|Ge|Hf|Sb|Ni|Re|Ce|Ba|Cr|K|Ra|Be|
 data['smiles'] = data['smiles'].str.replace('[Na+]', '')
 
 data.to_csv('train_NAPro.csv', index=False)
+
+#取200个0类和200个1类作为运行示例
+data = data.groupby('label').head(200)
+data.to_csv('train_small.csv', index=False)

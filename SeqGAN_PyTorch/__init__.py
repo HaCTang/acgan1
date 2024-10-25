@@ -534,8 +534,6 @@ class ACSeqGAN(object):
             for it in range(self.gen_loader.num_batch):
                 batch = self.gen_loader.next_batch()
                 x, class_label = self.gen_loader.batch_to_tensor(batch)
-                print("x:", x)
-                print("class_label:", class_label)
                 g_loss = self.generator.pretrain_step(x, class_label)
                 supervised_g_losses.append(g_loss)
             # print results

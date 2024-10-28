@@ -115,8 +115,6 @@ class DisDataIter(object):
         negative_labels = [[1,] for _ in negative_examples]
         y = np.concatenate([positive_labels, negative_labels], 0)
 
-        x_text = np.array(x_text)
-        y = np.array(y)
         return [x_text, y]
 
     def load_train_data(self, positive_file, negative_file):
@@ -126,9 +124,11 @@ class DisDataIter(object):
         # Load and preprocess data
         classified_sentences, labels = self.load_data_and_labels(
             positive_file, negative_file)
-        shuffle_indices = np.random.permutation(np.arange(len(labels)))
-        x_shuffled = classified_sentences[shuffle_indices]
-        y_shuffled = labels[shuffle_indices]
+        combined = list(zip(classified_sentences, labels))
+        np.random.shuffle(combined)
+        x_shuffled, y_shuffled = zip(*combined)
+        x_shuffled = list(x_shuffled)
+        y_shuffled = list(y_shuffled)
         self.sequence_length = 20 
         return [x_shuffled, y_shuffled]
 
@@ -163,17 +163,16 @@ class DisDataIter(object):
         """
         Generates a batch iterator for a dataset.
         """
-        data = np.array(list(data))
+        data = list(data)  # Convert zip object to list to get its length
         data_size = len(data)
         num_batches_per_epoch = int(len(data) / batch_size) + 1
         for epoch in range(num_epochs):
             # Shuffle the data at each epoch
-            shuffle_indices = np.random.permutation(np.arange(data_size))
-            shuffled_data = data[shuffle_indices]
+            np.random.shuffle(data)
             for batch_num in range(num_batches_per_epoch):
                 start_index = batch_num * batch_size
                 end_index = min((batch_num + 1) * batch_size, data_size)
-                yield shuffled_data[start_index:end_index]
+                yield data[start_index:end_index]
 
     # def __init__(self, real_data_files, fake_data_file, batch_size):
     #     super(DisDataIter, self).__init__()

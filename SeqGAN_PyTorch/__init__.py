@@ -557,7 +557,7 @@ class ACSeqGAN(object):
                     self.PRETRAIN_DIS_EPOCHS)
                 supervised_d_losses = []
 
-                for batch in dis_batches:
+                for batch in dis_batches:                    
                     x_batch, y_batch = zip(*batch)
                     x, x_label = zip(*x_batch)
 

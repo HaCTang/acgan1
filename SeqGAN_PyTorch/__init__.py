@@ -590,6 +590,7 @@ class ACSeqGAN(object):
 
         for _ in range(int(num / self.GEN_BATCH_SIZE)):
             for class_label in range(self.NUM_CLASS):
+                class_label = torch.tensor([class_label] * self.GEN_BATCH_SIZE, dtype=torch.int64)
                 gen_x, _ = self.generator.generate(class_label)
                 generated_samples.extend([gen_x, class_label])
 

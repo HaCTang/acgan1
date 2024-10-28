@@ -183,6 +183,7 @@ def test_generator():
 
     # Generate sample class labels
     class_labels = torch.randint(0, num_classes, (batch_size,))
+    print("Class Labels:", class_labels)
 
     # Test generate function
     generated_seq, generated_labels = generator.generate(class_labels)

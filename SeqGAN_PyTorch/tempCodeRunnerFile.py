@@ -1,2 +1,2 @@
-import torch
-print(torch.__version__)
+
+    emb_dim = 8

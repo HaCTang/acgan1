@@ -563,7 +563,7 @@ class ACSeqGAN(object):
 
                     # Convert to tensors
                     x = torch.tensor(x, dtype=torch.long)
-                    y_batch = torch.tensor(y_batch, dtype=torch.float)
+                    y_batch = torch.tensor(np.array(y_batch), dtype=torch.float)
                     x_label = torch.tensor(x_label, dtype=torch.int64)
 
                     d_loss = self.discriminator.train_step(x, y_batch, x_label)
@@ -575,6 +575,7 @@ class ACSeqGAN(object):
 
         self.PRETRAINED = True
         return
+    
     def generate_samples(self, num):
         """Generates molecules. Returns a list of samples, the same shape of self.positive_samples.
 

@@ -771,8 +771,8 @@ class ACSeqGAN(object):
                 torch.save({
                     'generator_state_dict': self.generator.state_dict(),
                     'discriminator_state_dict': self.discriminator.state_dict(),
-                    'gen_optimizer_state_dict': self.gen_optimizer.state_dict(),
-                    'dis_optimizer_state_dict': self.dis_optimizer.state_dict()
+                    'gen_optimizer_state_dict': self.generator.optimizer.state_dict(),
+                    'dis_optimizer_state_dict': self.discriminator.optimizer.state_dict()
                 }, ckpt_file)
                 print('\nModel saved at {}'.format(ckpt_file))
 

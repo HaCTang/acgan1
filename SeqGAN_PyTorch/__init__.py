@@ -125,6 +125,10 @@ class ACSeqGAN(object):
             self.g_sequence_len = params['g_sequence_len']
         else:
             self.g_sequence_len = 20
+        if 'g_iterations' in params:
+            self.g_iterations = params['g_iterations']
+        else:
+            self.g_iterations = 2
 
         #Discriminator参数
         if 'd_emb_dim' in params:
@@ -188,7 +192,7 @@ class ACSeqGAN(object):
         self.AV_METRICS = mm.get_metrics()
         self.LOADINGS = mm.metrics_loading()
 
-        # self.PRETRAINED = False
+        self.PRETRAINED = False
 
     def load_training_set(self, file):
         """Specifies a training set for the model. It also finishes
@@ -270,7 +274,7 @@ class ACSeqGAN(object):
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
-                      'g_emb_dim','g_hidden_dim', 'g_sequence_len', 
+                      'g_emb_dim','g_hidden_dim', 'g_sequence_len', 'g_iterations',
                       'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH', 
                       'LAMBDA_1', 'LAMBDA_2']
 
@@ -437,8 +441,8 @@ class ACSeqGAN(object):
             checkpoint = torch.load(ckpt, map_location=self.device)
             self.generator.load_state_dict(checkpoint['generator_state_dict'])
             self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
-            self.gen_optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
-            self.dis_optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
+            self.generator.optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+            self.discriminator.optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
             print('Pretrain loaded from previous checkpoint {}'.format(ckpt))
             self.PRETRAINED = True
         else:
@@ -509,8 +513,8 @@ class ACSeqGAN(object):
             checkpoint = torch.load(ckpt, map_location=self.device)
             self.generator.load_state_dict(checkpoint['generator_state_dict'])
             self.discriminator.load_state_dict(checkpoint['discriminator_state_dict'])
-            self.gen_optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
-            self.dis_optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
+            self.generator.optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
+            self.discriminator.optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
             print('Training loaded from previous checkpoint {}'.format(ckpt))
             self.SESS_LOADED = True
         else:
@@ -626,14 +630,15 @@ class ACSeqGAN(object):
             torch.save({
                 'generator_state_dict': self.generator.state_dict(),
                 'discriminator_state_dict': self.discriminator.state_dict(),
-                'gen_optimizer_state_dict': self.gen_optimizer.state_dict(),
-                'dis_optimizer_state_dict': self.dis_optimizer.state_dict()
+                'gen_optimizer_state_dict': self.generator.optimizer.state_dict(),
+                'dis_optimizer_state_dict': self.discriminator.optimizer.state_dict()
             }, ckpt_file)
             if self.verbose:
-                print('Pretrain saved at {}'.format(path))
+                print('Pretrain saved at {}'.format(ckpt_file))
 
         if not hasattr(self, 'rollout'):
             self.rollout = Rollout(self.generator, 0.8, self.PAD_NUM)
+            self.rollout.g_embeddings = self.generator.emb
 
         if self.verbose:
             print('\nSTARTING TRAINING')
@@ -687,27 +692,26 @@ class ACSeqGAN(object):
             print('Batch n. {}'.format(nbatch))
             print('============================\n')
             print('\nGENERATOR TRAINING')
-            print('============================\n')
+            print('============================\n')        
 
-            # results
             mm.compute_results(batch_reward,
                                gen_samples, self.train_samples, self.ord_dict, results)
 
-            for it in range(self.GEN_ITERATIONS):
-                samples = self.generator.generate(self.sess)
-                rewards = self.rollout.get_reward(
-                    self.sess, samples, 16, self.discriminator,
-                    batch_reward, self.LAMBDA)
-                g_loss = self.generator.generator_step(
-                    self.sess, samples, rewards)
-                losses['G-loss'].append(g_loss)
-                self.generator.g_count = self.generator.g_count + 1
-                self.report_rewards(rewards, metric)
+            for it in range(self.g_iterations):
+                for i in range(self.NUM_CLASS):
+                    samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
+                    rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
+                                                    batch_reward, self.LAMBDA_1)
+                    print(samples)
+                    g_loss = self.generator.train_step(samples, sample_labels, rewards)
+                    losses['G-loss'].append(g_loss)
+                    self.generator.g_count += 1
+                    self.report_rewards(rewards, metric)
 
             self.rollout.update_params()
 
             # generate for discriminator
-            if self.LAMBDA != 0:
+            if self.LAMBDA_1 != 0:
                 print('\nDISCRIMINATOR TRAINING')
                 print('============================\n')
                 for i in range(self.DIS_EPOCHS):
@@ -724,8 +728,8 @@ class ACSeqGAN(object):
                     d_losses, ce_losses, l2_losses, w_loss = [], [], [], []
                     for batch in dis_batches:
                         x_batch, y_batch = zip(*batch)
-                        _, d_loss, ce_loss, l2_loss, w_loss = self.discriminator.train(
-                            self.sess, x_batch, y_batch, self.DIS_DROPOUT)
+                        d_loss, ce_loss, l2_loss, w_loss = self.discriminator.train_step(
+                            x_batch, y_batch, self.DIS_DROPOUT)
                         d_losses.append(d_loss)
                         ce_losses.append(ce_loss)
                         l2_losses.append(l2_loss)
@@ -735,7 +739,7 @@ class ACSeqGAN(object):
                     losses['L2-loss'].append(np.mean(l2_losses))
                     losses['WGAN-loss'].append(np.mean(l2_losses))
 
-                    self.discriminator.d_count = self.discriminator.d_count + 1
+                    self.discriminator.d_count += 1
 
                 print('\nDiscriminator trained.')
 
@@ -759,7 +763,6 @@ class ACSeqGAN(object):
                     label = str(nbatch)
 
                 # save models
-                model_saver = tf.train.Saver()
                 ckpt_dir = self.CHK_PATH
 
                 if not os.path.exists(ckpt_dir):
@@ -774,6 +777,7 @@ class ACSeqGAN(object):
                 print('\nModel saved at {}'.format(ckpt_file))
 
         print('\n######### FINISHED #########')
+
 
 
     # def train_epoch(self, model, data_iter, criterion, optimizer):

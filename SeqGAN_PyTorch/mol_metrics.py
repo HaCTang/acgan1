@@ -465,7 +465,7 @@ def print_params(p):
 
 
 def compute_results(reward, model_samples, train_data, ord_dict, results={}, verbose=True):
-    samples = [decode(s, ord_dict) for s in model_samples]
+    samples = [decode(s[0], ord_dict) for s in model_samples]
     results['mean_length'] = np.mean([len(sample) for sample in samples])
     results['n_samples'] = len(samples)
     results['uniq_samples'] = len(set(samples))

@@ -71,6 +71,11 @@ class ACSeqGAN(object):
         else:
             self.PRETRAIN_DIS_EPOCHS = 50
 
+        if 'DIS_EPOCHS' in params:
+            self.DIS_EPOCHS = params['DIS_EPOCHS']
+        else:
+            self.DIS_EPOCHS = 3
+
         if 'SEED' in params:
             self.SEED = params['SEED']
         else:
@@ -268,7 +273,7 @@ class ACSeqGAN(object):
             #           'DIS_FILTER_SIZES', 'DIS_NUM_FILTERS',
             #           'DIS_DROPOUT', 'DIS_L2REG']
             
-            params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS',
+            params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS', 'DIS_EPOCHS',
                       'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
                       'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 'NUM_CLASS',
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
@@ -603,12 +608,13 @@ class ACSeqGAN(object):
 
     def report_rewards(self, rewards, metric):
         print('~~~~~~~~~~~~~~~~~~~~~~~~\n')
-        print('Reward: {}  (lambda={:.2f})'.format(metric, self.LAMBDA))
+        print('Reward: {}  (lambda={:.2f})'.format(metric, self.LAMBDA_1))
         #np.set_printoptions(precision=3, suppress=True)
         mean_r, std_r = np.mean(rewards), np.std(rewards)
         min_r, max_r = np.min(rewards), np.max(rewards)
         print('Stats: {:.3f} ({:.3f}) [{:3f},{:.3f}]'.format(
             mean_r, std_r, min_r, max_r))
+        rewards = np.array(rewards)
         non_neg = rewards[rewards > 0.01]
         if len(non_neg) > 0:
             mean_r, std_r = np.mean(non_neg), np.std(non_neg)
@@ -708,7 +714,7 @@ class ACSeqGAN(object):
                     rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
                     g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
                     losses['G-loss'].append(g_loss)
-                    self.generator.g_count += 1
+                    # self.generator.g_count += 1
                     self.report_rewards(rewards, metric)
 
             self.rollout.update_params()
@@ -732,7 +738,7 @@ class ACSeqGAN(object):
                     for batch in dis_batches:
                         x_batch, y_batch = zip(*batch)
                         d_loss, ce_loss, l2_loss, w_loss = self.discriminator.train_step(
-                            x_batch, y_batch, self.DIS_DROPOUT)
+                            x_batch, y_batch, self.d_dropout)
                         d_losses.append(d_loss)
                         ce_losses.append(ce_loss)
                         l2_losses.append(l2_loss)
@@ -742,7 +748,7 @@ class ACSeqGAN(object):
                     losses['L2-loss'].append(np.mean(l2_losses))
                     losses['WGAN-loss'].append(np.mean(l2_losses))
 
-                    self.discriminator.d_count += 1
+                    # self.discriminator.d_count += 1
 
                 print('\nDiscriminator trained.')
 

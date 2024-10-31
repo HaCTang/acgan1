@@ -92,7 +92,7 @@ class Rollout(nn.Module):
     def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, D_weight=1):
         """Calculates the rewards for a list of SMILES strings."""
         reward_weight = 1 - D_weight
-        rewards = [0] * (self.sequence_length - 1)
+        rewards = [0] * (self.sequence_length)
         for _ in range(rollout_num):
             already = []
             for given_num in range(1, self.sequence_length):
@@ -150,9 +150,10 @@ class Rollout(nn.Module):
                 rewards.append(ypred)
             else:
                 rewards[-1] += ypred
-
+        
         rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
-        return rewards
+        rewards_list = [arr.flatten().tolist() for arr in rewards]
+        return rewards_list
 
     def create_recurrent_unit(self):
         """Defines the recurrent process in the LSTM."""
@@ -165,9 +166,16 @@ class Rollout(nn.Module):
     def update_params(self):
         """Updates all parameters in the rollout's LSTM."""
         with torch.no_grad():
-            self.g_embeddings = self.lstm.emb.clone().to(self.lstm.emb.weight.device)
-            self.class_emb = self.lstm.class_emb.clone()
-            self.g_recurrent_unit.load_state_dict(self.lstm.lstm.state_dict())
+            self.g_embeddings = nn.Embedding.from_pretrained(self.lstm.emb.weight.clone(), freeze=False).to(self.lstm.emb.weight.device)
+            self.class_emb = nn.Embedding.from_pretrained(self.lstm.class_emb.weight.clone(), freeze=False).to(self.lstm.class_emb.weight.device)
+            lstm_state_dict = self.lstm.lstm.state_dict()
+            lstm_cell_state_dict = {
+                'weight_ih': lstm_state_dict['weight_ih_l0'],
+                'weight_hh': lstm_state_dict['weight_hh_l0'],
+                'bias_ih': lstm_state_dict['bias_ih_l0'],
+                'bias_hh': lstm_state_dict['bias_hh_l0']
+            }
+            self.g_recurrent_unit.load_state_dict(lstm_cell_state_dict)
             self.g_output_unit.load_state_dict(self.lstm.lin.state_dict())
 
 from SeqGAN_PyTorch.generator import Generator

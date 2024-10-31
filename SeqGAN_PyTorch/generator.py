@@ -27,6 +27,8 @@ class Generator(nn.Module):
         self.reward_gamma = reward_gamma
         self.grad_clip = grad_clip
 
+        #self.g_count = 0 # for reporting
+
         self.emb = nn.Embedding(num_emb, emb_dim)
         self.class_emb = nn.Embedding(num_classes, emb_dim) # Class embedding
 
@@ -134,6 +136,8 @@ class Generator(nn.Module):
         Performs a training step on the generator.
         Also known as unsupervised training.
         """
+        print(rewards.size())
+        print(rewards)
         self.train()
         hidden = self.init_hidden(x.size(0))
         x = x.to(self.emb.weight.device)

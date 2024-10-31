@@ -32,6 +32,8 @@ class Discriminator(nn.Module):
 
         self.emb = nn.Embedding(vocab_size, emb_dim)
 
+        #self.d_count = 0 # for reporting
+
         self.convs = nn.ModuleList([
             nn.Conv2d(1, num_filter, (filter_size, emb_dim))
             for filter_size, num_filter in zip(filter_sizes, num_filters)

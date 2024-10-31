@@ -197,6 +197,7 @@ def test_generator():
 
     # Create random rewards for train step
     rewards = torch.rand(batch_size, sequence_length)
+    print("Rewards:", rewards)
     train_loss = generator.train_step(input_seq, class_labels, rewards)
     print("Train Loss:", train_loss)
 

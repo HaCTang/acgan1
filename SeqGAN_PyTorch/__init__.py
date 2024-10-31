@@ -704,8 +704,9 @@ class ACSeqGAN(object):
                     #                                 batch_reward, self.LAMBDA_1)
                     rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
                                                     batch_reward, self.LAMBDA_1)
-
-                    g_loss = self.generator.train_step(samples, sample_labels, rewards)
+                    rewards_tensor = torch.tensor(rewards, device=self.generator.emb.weight.device)
+                    rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
+                    g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
                     losses['G-loss'].append(g_loss)
                     self.generator.g_count += 1
                     self.report_rewards(rewards, metric)

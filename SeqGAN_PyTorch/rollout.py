@@ -68,6 +68,9 @@ class Rollout(nn.Module):
             h_tm1 = self.g_recurrent_unit(x_t, h_tm1)
             gen_x.append(x[:, i])
 
+
+#to do: devide class roll-out and sample roll-out
+    
         # When current index i >= given_num, start roll-out, use the output at time step t as the input at time step t+1
         for i in range(given_num, self.sequence_length):
             if i == given_num:
@@ -77,7 +80,7 @@ class Rollout(nn.Module):
                 token_emb = self.g_embeddings(next_token).squeeze(1)  # [batch_size, emb_dim]
                 class_emb_current = class_emb[:, i, :]  # [batch_size, emb_dim]
                 x_t = torch.cat([token_emb, class_emb_current], dim=-1)  # [batch_size, emb_dim * 2]
-            print("22:", x_t.shape)
+            # print("22:", x_t.shape)
             h_tm1 = self.g_recurrent_unit(x_t, h_tm1)
             o_t = self.g_output_unit(h_tm1[0])  # logits not prob
             log_prob = F.log_softmax(o_t, dim=-1)

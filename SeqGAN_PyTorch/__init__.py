@@ -700,9 +700,11 @@ class ACSeqGAN(object):
             for it in range(self.g_iterations):
                 for i in range(self.NUM_CLASS):
                     samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
-                    rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
+                    # rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
+                    #                                 batch_reward, self.LAMBDA_1)
+                    rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
                                                     batch_reward, self.LAMBDA_1)
-                    print(samples)
+
                     g_loss = self.generator.train_step(samples, sample_labels, rewards)
                     losses['G-loss'].append(g_loss)
                     self.generator.g_count += 1

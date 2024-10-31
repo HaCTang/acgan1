@@ -130,7 +130,7 @@ class Rollout(nn.Module):
                     rewards.append(ypred)
                 else:
                     rewards[given_num - 1] += ypred
-
+            
             dis_output = dis(input_x.to(dis.emb.weight.device))
             if isinstance(dis_output, tuple):
                 ypred_for_auc, yclasspred_for_auc = dis_output
@@ -140,13 +140,12 @@ class Rollout(nn.Module):
             yclasspred_for_auc = yclasspred_for_auc.detach().cpu().numpy() if yclasspred_for_auc is not None else None
             ypred_for_auc = ypred_for_auc.detach().cpu().numpy()
             
-            
             if reward_fn:
                 input_x_list = input_x.cpu().tolist()
-                ypred = D_weight * ypred_for_auc + reward_weight * reward_fn(input_x_list)
+                ypred = D_weight * ypred_for_auc + reward_weight * reward_fn(input_x_list).reshape(-1, 1)
             else:
                 ypred = ypred_for_auc
-
+            
             if len(rewards) == 0:
                 rewards.append(ypred)
             else:

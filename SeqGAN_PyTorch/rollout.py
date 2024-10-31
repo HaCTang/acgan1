@@ -91,21 +91,31 @@ class Rollout(nn.Module):
 
     def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, D_weight=1):
         """Calculates the rewards for a list of SMILES strings."""
-
         reward_weight = 1 - D_weight
-        rewards = []
+        rewards = [0] * (self.sequence_length - 1)
         for _ in range(rollout_num):
             already = []
             for given_num in range(1, self.sequence_length):
-                generated_seqs = self.forward(input_x, class_label, given_num).detach().cpu().numpy()
+                generated_seqs = self.forward(input_x, class_label, given_num).detach().to(dis.emb.weight.device)
                 gind = np.array(range(len(generated_seqs)))
                 
-                ypred_for_auc = dis(generated_seqs).detach().cpu().numpy()[:, 1]
+                dis_output = dis(generated_seqs.to(dis.emb.weight.device))
+                if isinstance(dis_output, tuple):
+                    ypred_for_auc, yclasspred_for_auc = dis_output
+                else:
+                    ypred_for_auc = dis_output
+                    yclasspred_for_auc = None
+
+                if yclasspred_for_auc is not None:
+                    yclasspred_for_auc = yclasspred_for_auc.detach().cpu().numpy()
+                ypred_for_auc = ypred_for_auc.detach().cpu().numpy()
+                
                 ypred = ypred_for_auc.copy()
+                yclasspred = yclasspred_for_auc.copy()
                 
                 if reward_fn:
                     ypred = D_weight * ypred
-                    rew = reward_fn(generated_seqs)
+                    rew = reward_fn(generated_seqs.cpu().numpy())
                     
                     for k, r in zip(gind, rew):
                         ypred[k] += reward_weight * r
@@ -121,9 +131,19 @@ class Rollout(nn.Module):
                 else:
                     rewards[given_num - 1] += ypred
 
-            ypred_for_auc = dis(input_x).detach().cpu().numpy()[:, 1]
+            dis_output = dis(input_x.to(dis.emb.weight.device))
+            if isinstance(dis_output, tuple):
+                ypred_for_auc, yclasspred_for_auc = dis_output
+            else:
+                ypred_for_auc = dis_output
+                yclasspred_for_auc = None
+            yclasspred_for_auc = yclasspred_for_auc.detach().cpu().numpy() if yclasspred_for_auc is not None else None
+            ypred_for_auc = ypred_for_auc.detach().cpu().numpy()
+            
+            
             if reward_fn:
-                ypred = D_weight * ypred_for_auc + reward_weight * reward_fn(input_x)
+                input_x_list = input_x.cpu().tolist()
+                ypred = D_weight * ypred_for_auc + reward_weight * reward_fn(input_x_list)
             else:
                 ypred = ypred_for_auc
 

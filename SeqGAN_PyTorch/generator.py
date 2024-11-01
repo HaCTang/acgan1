@@ -136,8 +136,6 @@ class Generator(nn.Module):
         Performs a training step on the generator.
         Also known as unsupervised training.
         """
-        print(rewards.size())
-        print(rewards)
         self.train()
         hidden = self.init_hidden(x.size(0))
         x = x.to(self.emb.weight.device)

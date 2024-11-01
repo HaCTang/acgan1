@@ -116,6 +116,10 @@ class ACSeqGAN(object):
             self.NUM_CLASS = params['NUM_CLASS']
         else:
             self.NUM_CLASS = 2
+        if 'EPOCH_SAVES' in params:
+            self.EPOCH_SAVES = params['EPOCH_SAVES']
+        else:
+            self.EPOCH_SAVES = 20
         
         #Generator参数
         if 'g_emb_dim' in params:
@@ -274,7 +278,7 @@ class ACSeqGAN(object):
             #           'DIS_DROPOUT', 'DIS_L2REG']
             
             params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS', 'DIS_EPOCHS',
-                      'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 
+                      'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 'EPOCH_SAVES',
                       'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 'NUM_CLASS',
                       'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
                       'd_num_classes', 'd_filter_sizes',
@@ -734,19 +738,28 @@ class ACSeqGAN(object):
                         self.DIS_BATCH_SIZE, self.DIS_EPOCHS
                     )
 
-                    d_losses, ce_losses, l2_losses, w_loss = [], [], [], []
+                    # d_losses, ce_losses, l2_losses, w_loss = [], [], [], []
+                    d_losses = []
                     for batch in dis_batches:
                         x_batch, y_batch = zip(*batch)
-                        d_loss, ce_loss, l2_loss, w_loss = self.discriminator.train_step(
-                            x_batch, y_batch, self.d_dropout)
+                        x, x_label = zip(*x_batch)
+
+                        # Convert to tensors
+                        x = torch.tensor(x, dtype=torch.long)
+                        y_batch = torch.tensor(np.array(y_batch), dtype=torch.float)
+                        x_label = torch.tensor(x_label, dtype=torch.int64)
+
+                        d_loss = self.discriminator.train_step(x, y_batch, 
+                                                               x_label, self.d_dropout)
                         d_losses.append(d_loss)
-                        ce_losses.append(ce_loss)
-                        l2_losses.append(l2_loss)
+                        # ce_losses.append(ce_loss)
+                        # l2_losses.append(l2_loss)
+                        # w_loss.append(wgan_loss)
 
                     losses['D-loss'].append(np.mean(d_losses))
-                    losses['CE-loss'].append(np.mean(ce_losses))
-                    losses['L2-loss'].append(np.mean(l2_losses))
-                    losses['WGAN-loss'].append(np.mean(l2_losses))
+                    # losses['CE-loss'].append(np.mean(ce_losses))
+                    # losses['L2-loss'].append(np.mean(l2_losses))
+                    # losses['WGAN-loss'].append(np.mean(l2_losses))
 
                     # self.discriminator.d_count += 1
 

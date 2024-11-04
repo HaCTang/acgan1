@@ -152,8 +152,8 @@ class Rollout(nn.Module):
                 rewards[-1] += ypred
         
         rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
-        rewards_list = [arr.flatten().tolist() for arr in rewards]
-        return rewards_list
+        flattened_rewards = rewards[0]
+        return flattened_rewards
 
     def create_recurrent_unit(self):
         """Defines the recurrent process in the LSTM."""
@@ -177,104 +177,3 @@ class Rollout(nn.Module):
             }
             self.g_recurrent_unit.load_state_dict(lstm_cell_state_dict)
             self.g_output_unit.load_state_dict(self.lstm.lin.state_dict())
-
-from SeqGAN_PyTorch.generator import Generator
-if __name__ == "__main__":
-    # Define a simple test for the Rollout class
-    class SimpleDiscriminator(nn.Module):
-        def __init__(self, input_dim, output_dim):
-            super(SimpleDiscriminator, self).__init__()
-            self.fc = nn.Linear(input_dim, output_dim)
-
-        def forward(self, x):
-            return self.fc(x)
-
-    # Initialize Generator (lstm), Discriminator, and Rollout
-    num_emb = 10
-    batch_size = 4
-    emb_dim = 8
-    hidden_dim = 16
-    num_classes = 3
-    sequence_length = 5
-    start_token = 0
-    use_cuda = False
-
-    generator = Generator(num_emb, batch_size, emb_dim, hidden_dim, num_classes, use_cuda, sequence_length, start_token)
-    rollout = Rollout(generator, update_rate=0.8, pad_num=0)
-    discriminator = SimpleDiscriminator(sequence_length * num_classes, 2)
-
-    # Test Rollout
-    x = torch.randint(0, num_emb, (batch_size, sequence_length))
-    class_label = torch.randint(0, num_classes, (batch_size,))
-    given_num = 3
-
-    print("Input sequences:", x)
-    print("Class labels:", class_label)
-
-    # Forward pass through Rollout
-    output = rollout(x, class_label, given_num)
-    print("Generated sequences:", output)
-
-    # Reward calculation
-    rewards = rollout.get_reward(x, class_label, rollout_num=3, dis=discriminator)
-    print("Rewards:", rewards)
-
-
-
-    # def get_reward(self, x, num, discriminator, class_labels):
-    #     """
-    #     Args:
-    #         x : (batch_size, seq_len) input data (generated sequences)
-    #         num : roll-out number
-    #         discriminator : discrimanator model
-    #         class_labels: (batch_size,) ground truth class labels
-    #     """
-    #     rewards = []
-    #     batch_size = x.size(0)
-    #     seq_len = x.size(1)
-    #     for i in range(num):
-    #         for l in range(1, seq_len):
-    #             data = x[:, 0:l]
-    #             samples = self.own_model.sample(batch_size, seq_len, data)
-                
-    #             # Get both real/fake prediction and class prediction from discriminator
-    #             real_fake_pred, class_pred = discriminator(samples)
-    #             real_fake_pred = real_fake_pred.cpu().data.numpy()
-    #             class_pred = class_pred.cpu().data.numpy()
-                
-    #             # Compute rewards based on real/fake prediction
-    #             real_fake_reward = real_fake_pred[:, 0]  # Assuming 0 index for real
-    #             # Optionally, include class prediction accuracy in reward
-    #             class_reward = np.sum(np.argmax(class_pred, axis=1) == class_labels.cpu().numpy()) / float(batch_size)
-    #             total_reward = real_fake_reward + class_reward  # Combine both rewards
-    #             if i == 0:
-    #                 rewards.append(total_reward)
-    #             else:
-    #                 rewards[l-1] += total_reward
-
-    #         # for the last token
-    #         real_fake_pred, class_pred = discriminator(x)
-    #         real_fake_pred = real_fake_pred.cpu().data.numpy()
-    #         class_pred = class_pred.cpu().data.numpy()
-            
-    #         real_fake_reward = real_fake_pred[:, 0]  # Real/fake reward
-    #         class_reward = np.sum(np.argmax(class_pred, axis=1) == class_labels.cpu().numpy()) / float(batch_size)
-            
-    #         total_reward = real_fake_reward + class_reward  # Combine rewards for the last token
-    
-    #         if i == 0:
-    #             rewards.append(total_reward)
-    #         else:
-    #             rewards[seq_len-1] += total_reward
-    #     rewards = np.transpose(np.array(rewards)) / (1.0 * num) # batch_size * seq_len
-    #     return rewards
-
-    # def update_params(self):
-    #     dic = {}
-    #     for name, param in self.ori_model.named_parameters():
-    #         dic[name] = param.data
-    #     for name, param in self.own_model.named_parameters():
-    #         if name.startswith('emb'):
-    #             param.data = dic[name]
-    #         else:
-    #             param.data = self.update_rate * param.data + (1 - self.update_rate) * dic[name]

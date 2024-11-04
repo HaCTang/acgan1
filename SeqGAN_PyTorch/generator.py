@@ -152,7 +152,7 @@ class Generator(nn.Module):
         # Calculate loss with rewards
         log_probs = F.log_softmax(logits, dim=-1)
         one_hot = F.one_hot(target, self.num_emb).float()
-        token_loss = -torch.sum(rewards.view(-1, 1) * one_hot * log_probs) / self.batch_size
+        token_loss = -torch.sum(rewards.reshape(-1, 1) * one_hot * log_probs) / self.batch_size
 
         # # Calculate class loss at the end of the sequence
         # _, class_logits, _ = self.forward(x, class_label, hidden)

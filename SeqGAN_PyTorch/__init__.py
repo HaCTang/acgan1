@@ -320,6 +320,7 @@ class ACSeqGAN(object):
             vocab_size=self.NUM_EMB,
             emb_dim=self.d_emb_dim,
             filter_sizes=self.d_filter_sizes,
+            use_cuda = self.cuda,
             num_filters=self.d_num_filters,
             l2_reg_lambda=self.d_l2reg,
             grad_clip=self.d_grad_clip)
@@ -693,12 +694,12 @@ class ACSeqGAN(object):
             for it in range(self.g_iterations):
                 for i in range(self.NUM_CLASS):
                     samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
-                    rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
-                                                    batch_reward, self.LAMBDA_1)
-                    # rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
+                    # rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
                     #                                 batch_reward, self.LAMBDA_1)
+                    rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
+                                                    batch_reward, self.LAMBDA_1)
                     rewards_tensor = torch.tensor(rewards, device=self.generator.emb.weight.device)
-                    rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
+                    # rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
                     g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
                     losses['G-loss'].append(g_loss)
                     # self.generator.g_count += 1

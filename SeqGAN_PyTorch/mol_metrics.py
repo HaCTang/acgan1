@@ -443,6 +443,15 @@ def read_smiles_csv(filename)->list:
 # file_path = os.path.join(parent_directory, 'train_NAPro.csv')
 # print(read_smiles_csv(file_path))
 
+def save_csv(name, smiles, labels):
+    if not os.path.exists('epoch_data'):
+        os.makedirs('epoch_data')
+    csv_file = os.path.join('epoch_data', "{}.csv".format(name))
+    with open(csv_file, 'w') as afile:
+        afile.write('smiles,label\n')
+        for smi, label in zip(smiles, labels):
+            afile.write('{},{}\n'.format(smi, label))
+    return
 
 def save_smi(name, smiles):
     if not os.path.exists('epoch_data'):
@@ -469,8 +478,10 @@ def print_params(p):
     return
 
 
-def compute_results(reward, model_samples, train_data, ord_dict, results={}, verbose=True):
+def compute_results(reward, model_samples, train_data, ord_dict,
+                    savesmi=False, savecsv=True, results={}, verbose=True):
     samples = [decode(s[0], ord_dict) for s in model_samples]
+    labels = [s[1] for s in model_samples]
     results['mean_length'] = np.mean([len(sample) for sample in samples])
     results['n_samples'] = len(samples)
     results['uniq_samples'] = len(set(samples))
@@ -480,7 +491,8 @@ def compute_results(reward, model_samples, train_data, ord_dict, results={}, ver
         sample for sample in samples if not verify_sequence(sample)]
     results['good_samples'] = len(verified_samples)
     results['bad_samples'] = len(unverified_samples)
-
+    results['Batch'] = "output"
+    results['exp_name'] = "results"
 
     if verbose:
         print_results(verified_samples, unverified_samples, [], results)
@@ -491,7 +503,8 @@ def compute_results(reward, model_samples, train_data, ord_dict, results={}, ver
     # save smiles
     if 'Batch' in results.keys():
         smi_name = '{}_{}'.format(results['exp_name'], results['Batch'])
-        save_smi(smi_name, samples)
+        save_smi(smi_name, verified_samples)
+        save_csv(smi_name, samples, labels)
         results['model_samples'] = smi_name
     # print results
     if verbose:

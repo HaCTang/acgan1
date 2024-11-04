@@ -705,7 +705,7 @@ class ACSeqGAN(object):
             print('============================\n')        
 
             mm.compute_results(batch_reward,
-                               gen_samples, self.train_samples, self.ord_dict, results)
+                               gen_samples, self.train_samples, self.ord_dict, results=results)
 
             for it in range(self.g_iterations):
                 for i in range(self.NUM_CLASS):

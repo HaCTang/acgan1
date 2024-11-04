@@ -491,8 +491,6 @@ def compute_results(reward, model_samples, train_data, ord_dict,
         sample for sample in samples if not verify_sequence(sample)]
     results['good_samples'] = len(verified_samples)
     results['bad_samples'] = len(unverified_samples)
-    results['Batch'] = "output"
-    results['exp_name'] = "results"
 
     if verbose:
         print_results(verified_samples, unverified_samples, [], results)
@@ -501,10 +499,13 @@ def compute_results(reward, model_samples, train_data, ord_dict,
         verified_samples = 'c1ccccc1'
 
     # save smiles
+    print(results['Batch'])
     if 'Batch' in results.keys():
         smi_name = '{}_{}'.format(results['exp_name'], results['Batch'])
-        save_smi(smi_name, verified_samples)
-        save_csv(smi_name, samples, labels)
+        if savesmi:
+            save_smi(smi_name, verified_samples)
+        if savecsv:
+            save_csv(smi_name, samples, labels)
         results['model_samples'] = smi_name
     # print results
     if verbose:

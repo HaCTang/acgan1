@@ -1,2 +1,2 @@
 exp_name,Batch,mean_length,n_samples,uniq_samples,good_samples,bad_samples,model_samples
-test,0,153.79927884615384,4992,4945,45,4947,test_0
+test,0,91.94411057692308,4992,4960,24,4968,test_0

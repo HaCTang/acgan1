@@ -323,23 +323,6 @@ class ACSeqGAN(object):
             num_filters=self.d_num_filters,
             l2_reg_lambda=self.d_l2reg,
             grad_clip=self.d_grad_clip)
-        
-        # # Set up PyTorch training
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # self.generator.to(self.device)
-        # self.discriminator.to(self.device)
-
-        # # Initialize optimizers
-        # self.gen_optimizer = optim.Adam(self.generator.parameters(), lr=0.001)
-        # self.dis_optimizer = optim.Adam(self.discriminator.parameters(), lr=0.001)
-
-        # # Initialize loss function
-        # self.criterion = nn.BCELoss()
-
-        # TensorBoard setup (if needed)
-        # if 'TBOARD_LOG' in params:
-        #     from torch.utils.tensorboard import SummaryWriter
-        #     self.tb_writer = SummaryWriter(log_dir=self.CHK_PATH)
 
 # todo: 以下函数未完成，需要再加一个参数，metrics用于classlabel的评价指标
     def set_training_program(self, metrics=None, steps=None):
@@ -710,10 +693,10 @@ class ACSeqGAN(object):
             for it in range(self.g_iterations):
                 for i in range(self.NUM_CLASS):
                     samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
-                    # rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
-                    #                                 batch_reward, self.LAMBDA_1)
-                    rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
+                    rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
                                                     batch_reward, self.LAMBDA_1)
+                    # rewards = self.rollout.get_reward(samples, sample_labels, 1, self.discriminator, 
+                    #                                 batch_reward, self.LAMBDA_1)
                     rewards_tensor = torch.tensor(rewards, device=self.generator.emb.weight.device)
                     rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
                     g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
@@ -799,47 +782,3 @@ class ACSeqGAN(object):
                 print('\nModel saved at {}'.format(ckpt_file))
 
         print('\n######### FINISHED #########')
-
-
-
-    # def train_epoch(self, model, data_iter, criterion, optimizer):
-    #     total_loss = 0.
-    #     total_words = 0.
-    #     for (data, target) in data_iter:#tqdm(
-    #         #data_iter, mininterval=2, desc=' - Training', leave=False):
-    #         data = Variable(data)
-    #         target = Variable(target)
-    #         if self.cuda:
-    #             data, target = data.cuda(), target.cuda()
-    #         target = target.contiguous().view(-1)
-    #         pred = model.forward(data)
-    #         loss = criterion(pred, target)
-    #         total_loss += loss.item()
-    #         total_words += data.size(0) * data.size(1)
-    #         optimizer.zero_grad()
-    #         loss.backward()
-    #         optimizer.step()
-    #     data_iter.reset()
-    #     return math.exp(total_loss / total_words)
-
-    # def eval_epoch(self, model, data_iter, criterion):
-    #     total_loss = 0.
-    #     total_words = 0.
-    #     with torch.no_grad():
-    #         for (data, target) in data_iter:#tqdm(
-    #             #data_iter, mininterval=2, desc=' - Training', leave=False):
-    #             data = Variable(data)
-    #             target = Variable(target)
-    #             if self.cuda:
-    #                 data, target = data.cuda(), target.cuda()
-    #             target = target.contiguous().view(-1)
-    #             pred = model.forward(data)
-    #             loss = criterion(pred, target)
-    #             total_loss += loss.item()
-    #             total_words += data.size(0) * data.size(1)
-    #         data_iter.reset()
-
-    #     assert total_words > 0  # Otherwise NullpointerException
-    #     return math.exp(total_loss / total_words)
-    
-    

@@ -17,4 +17,4 @@ model.set_training_program(
     ['druglikeliness'], [100])
 model.load_metrics()
 # model.load_prev_training(ckpt='qm9-5k_20.ckpt')
-model.train()
+model.train(ckpt_dir='checkpoints_ORGAN/')

@@ -1,0 +1,2 @@
+exp_name,Batch,mean_length,n_samples,uniq_samples,good_samples,bad_samples,model_samples
+qm9-5k,0,58.799984375,64000,10619,2914,61086,qm9-5k_0

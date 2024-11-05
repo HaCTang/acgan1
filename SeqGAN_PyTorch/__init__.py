@@ -69,7 +69,7 @@ class ACSeqGAN(object):
         if 'PRETRAIN_DIS_EPOCHS' in params:
             self.PRETRAIN_DIS_EPOCHS = params['PRETRAIN_DIS_EPOCHS']
         else:
-            self.PRETRAIN_DIS_EPOCHS = 50
+            self.PRETRAIN_DIS_EPOCHS = 20
 
         if 'DIS_EPOCHS' in params:
             self.DIS_EPOCHS = params['DIS_EPOCHS']

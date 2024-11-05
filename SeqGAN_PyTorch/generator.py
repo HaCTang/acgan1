@@ -13,12 +13,13 @@ from torch.distributions import Categorical
 
 class Generator(nn.Module):
     """Generator """
-    def __init__(self, num_emb, batch_size, emb_dim, hidden_dim, num_classes, use_cuda,
+    def __init__(self, num_emb, batch_size, emb_dim, class_emb_dim, hidden_dim, num_classes, use_cuda,
                  sequence_length, start_token, learning_rate=0.001, reward_gamma=0.95, grad_clip=5.0):
         super(Generator, self).__init__()
         self.num_emb = num_emb
         self.batch_size = batch_size
         self.emb_dim = emb_dim
+        self.class_emb_dim = class_emb_dim
         self.hidden_dim = hidden_dim
         self.use_cuda = use_cuda
         self.sequence_length = sequence_length
@@ -26,11 +27,12 @@ class Generator(nn.Module):
         self.learning_rate = learning_rate
         self.reward_gamma = reward_gamma
         self.grad_clip = grad_clip
+        self.temperature = 3.0
 
         #self.g_count = 0 # for reporting
 
         self.emb = nn.Embedding(num_emb, emb_dim)
-        self.class_emb = nn.Embedding(num_classes, emb_dim) # Class embedding
+        self.class_emb = nn.Embedding(num_classes, class_emb_dim) # Class embedding
 
         self.lstm = nn.LSTM(emb_dim * 2, hidden_dim, batch_first=True)
         self.lin = nn.Linear(hidden_dim, num_emb)
@@ -39,7 +41,7 @@ class Generator(nn.Module):
 
         self.adversarial_loss = F.cross_entropy
         self.auxiliary_loss = F.cross_entropy
-        # self.init_params()
+        self.init_params()
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
 
@@ -50,9 +52,9 @@ class Generator(nn.Module):
             h, c = h.cuda(), c.cuda()
         return h, c
 
-    # def init_params(self):
-    #     for param in self.parameters():
-    #         param.data.uniform_(-0.05, 0.05)
+    def init_params(self):
+        for param in self.parameters():
+            param.data.uniform_(-0.05, 0.05)
     
     def forward(self, x, class_label, hidden):
         """
@@ -95,7 +97,8 @@ class Generator(nn.Module):
         # Generate sequence
         for i in range(self.sequence_length):
             logits, _, hidden = self.forward(x, class_label, hidden)
-            probs = F.softmax(logits[:, -1, :], dim=-1)  # [batch_size, num_emb]
+            # probs = F.softmax(logits[:, -1, :], dim=-1)
+            probs = F.softmax(logits[:, -1, :] / self.temperature, dim=-1)  # [batch_size, num_emb]  # [batch_size, num_emb]
             next_token = Categorical(probs).sample().unsqueeze(1)  # [batch_size, 1]
             gen_x[:, i] = next_token.squeeze()
             x = next_token
@@ -118,11 +121,11 @@ class Generator(nn.Module):
         logits, class_logits, _ = self.forward(x, class_label, hidden)
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
-
         # Calculate loss
         token_loss = self.adversarial_loss(logits, target)
         class_loss = self.auxiliary_loss(class_logits, class_label)
         loss = 0.5 * (token_loss + class_loss)
+        # loss = token_loss
 
         # Backward pass
         loss.backward()
@@ -154,11 +157,12 @@ class Generator(nn.Module):
         one_hot = F.one_hot(target, self.num_emb).float()
         token_loss = -torch.sum(rewards.reshape(-1, 1) * one_hot * log_probs) / self.batch_size
 
-        # # Calculate class loss at the end of the sequence
-        # _, class_logits, _ = self.forward(x, class_label, hidden)
+        # Calculate class loss at the end of the sequence
+        _, class_logits, _ = self.forward(x, class_label, hidden)
         class_loss = self.auxiliary_loss(class_logits, class_label)
 
         loss = 0.5 * (token_loss + class_loss)
+        # loss = token_loss
 
         # Backward pass
         loss.backward()

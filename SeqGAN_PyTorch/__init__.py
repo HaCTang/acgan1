@@ -104,10 +104,6 @@ class ACSeqGAN(object):
         else:
             self.GENERATED_NUM = 10000
 
-        if 'VOCAB_SIZE' in params:
-            self.VOCAB_SIZE = params['VOCAB_SIZE']
-        else:        
-            self.VOCAB_SIZE = 5000
         if 'PRE_EPOCH_NUM' in params:
             self.PRE_EPOCH_NUM = params['PRE_EPOCH_NUM']
         else:
@@ -125,11 +121,15 @@ class ACSeqGAN(object):
         if 'g_emb_dim' in params:
             self.g_emb_dim = params['g_emb_dim']
         else:
-            self.g_emb_dim = 32
+            self.g_emb_dim = 30
         if 'g_hidden_dim' in params:
             self.g_hidden_dim = params['g_hidden_dim']
         else:
             self.g_hidden_dim = 32
+        if 'g_class_hidden_dim' in params:
+            self.g_class_emb_dim = params['g_class_hidden_dim']
+        else:
+            self.g_class_emb_dim = 2
         if 'g_sequence_len' in params:
             self.g_sequence_len = params['g_sequence_len']
         else:
@@ -167,7 +167,7 @@ class ACSeqGAN(object):
         if 'd_l2reg' in params:
             self.d_l2reg = params['d_l2reg']
         else:
-            self.d_l2reg = 0.2
+            self.d_l2reg = 0.001
         
         #先验混合模型参数
         if 'LAMBDA_1' in params:
@@ -280,10 +280,9 @@ class ACSeqGAN(object):
             params = ['PRETRAIN_GEN_EPOCHS', 'PRETRAIN_DIS_EPOCHS', 'DIS_EPOCHS',
                       'SEED', 'BATCH_SIZE', 'TOTAL_BATCH', 'EPOCH_SAVES',
                       'GEN_BATCH_SIZE', 'DIS_BATCH_SIZE', 'NUM_CLASS',
-                      'GENERATED_NUM', 'VOCAB_SIZE', 'PRE_EPOCH_NUM', 
-                      'd_num_classes', 'd_filter_sizes',
+                      'GENERATED_NUM', 'PRE_EPOCH_NUM', 'd_num_classes', 'd_filter_sizes',
                       'd_num_filters', 'd_dropout', 'd_l2reg', 'd_grad_clip',
-                      'g_emb_dim','g_hidden_dim', 'g_sequence_len', 'g_iterations',
+                      'g_emb_dim', 'g_class_emb_dim','g_hidden_dim', 'g_sequence_len', 'g_iterations',
                       'CHK_PATH', 'START_TOKEN', 'MAX_LENGTH', 
                       'LAMBDA_1', 'LAMBDA_2']
 
@@ -311,9 +310,9 @@ class ACSeqGAN(object):
         #         wgan_reg_lambda=self.WGAN_REG_LAMBDA,
         #         grad_clip=self.DIS_GRAD_CLIP)
         # else:
-        self.generator = Generator(self.NUM_EMB, self.BATCH_SIZE, self.g_emb_dim,
-                                   self.g_hidden_dim, self.NUM_CLASS, self.cuda,
-                                   self.MAX_LENGTH, self.START_TOKEN)
+        self.generator = Generator(self.NUM_EMB, self.BATCH_SIZE, self.g_emb_dim, 
+                                   self.g_class_emb_dim, self.g_hidden_dim, self.NUM_CLASS, 
+                                   self.cuda, self.MAX_LENGTH, self.START_TOKEN)
         self.discriminator = Discriminator(
             sequence_length=self.MAX_LENGTH,
             num_classes=2,
@@ -509,7 +508,6 @@ class ACSeqGAN(object):
             self.generator.optimizer.load_state_dict(checkpoint['gen_optimizer_state_dict'])
             self.discriminator.optimizer.load_state_dict(checkpoint['dis_optimizer_state_dict'])
             print('Training loaded from previous checkpoint {}'.format(ckpt))
-            self.SESS_LOADED = True
         else:
             print('\t* No training checkpoint found as {:s}.'.format(ckpt))
 

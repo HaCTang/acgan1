@@ -107,11 +107,11 @@ class Rollout(nn.Module):
                     yclasspred_for_auc = None
 
                 if yclasspred_for_auc is not None:
-                    yclasspred_for_auc = yclasspred_for_auc.detach().cpu().numpy()
-                ypred_for_auc = ypred_for_auc.detach().cpu().numpy()
+                    yclasspred_for_auc = yclasspred_for_auc.detach()
+                ypred_for_auc = ypred_for_auc.detach()
                 
-                ypred = ypred_for_auc.copy()
-                yclasspred = yclasspred_for_auc.copy()
+                ypred = ypred_for_auc.clone()
+                yclasspred = yclasspred_for_auc.clone() if yclasspred_for_auc is not None else None
                 
                 if reward_fn:
                     ypred = D_weight * ypred
@@ -137,12 +137,12 @@ class Rollout(nn.Module):
             else:
                 ypred_for_auc = dis_output
                 yclasspred_for_auc = None
-            yclasspred_for_auc = yclasspred_for_auc.detach().cpu().numpy() if yclasspred_for_auc is not None else None
-            ypred_for_auc = ypred_for_auc.detach().cpu().numpy()
+            yclasspred_for_auc = yclasspred_for_auc.detach() if yclasspred_for_auc is not None else None
+            ypred_for_auc = ypred_for_auc.detach()
             
             if reward_fn:
                 input_x_list = input_x.cpu().tolist()
-                ypred = D_weight * ypred_for_auc + reward_weight * reward_fn(input_x_list).reshape(-1, 1)
+                ypred = D_weight * ypred_for_auc + reward_weight * torch.tensor(reward_fn(input_x_list).reshape(-1, 1), device=ypred_for_auc.device, dtype=ypred_for_auc.dtype)
             else:
                 ypred = ypred_for_auc
             
@@ -151,7 +151,7 @@ class Rollout(nn.Module):
             else:
                 rewards[-1] += ypred
         
-        rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
+        rewards = np.transpose(np.array([reward.cpu().numpy() for reward in rewards])) / (1.0 * rollout_num)  # batch_size x seq_length
         flattened_rewards = rewards[0]
         return flattened_rewards
 

@@ -9,6 +9,7 @@ model.load_training_set('./qm9_5k.csv')
 # model.set_training_program(['novelty'], [1])
 model.set_training_program(['druglikeliness'], [100])
 model.load_metrics()
+model.load_prev_pretraining(ckpt='ckpt/toy_pretrain_ckpt.pth')
 model.train(ckpt_dir='ckpt')
 
 

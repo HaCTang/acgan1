@@ -33,6 +33,7 @@ class Rollout(nn.Module):
         self.num_emb = lstm.num_emb
         self.batch_size = lstm.batch_size
         self.emb_dim = lstm.emb_dim
+        self.class_emb_dim = lstm.class_emb_dim
         self.hidden_dim = lstm.hidden_dim
         self.use_cuda = lstm.use_cuda
         self.sequence_length = lstm.sequence_length
@@ -56,7 +57,7 @@ class Rollout(nn.Module):
         class_emb = class_emb.expand(-1, self.sequence_length, -1)       # (batch_size, seq_len, emb_dim)
         
         # Concatenate token embeddings with class embeddings
-        self.processed_x = torch.cat([emb, class_emb], dim=-1).to(emb.device)  # (seq_len, batch_size, emb_dim * 2)
+        self.processed_x = torch.cat([emb, class_emb], dim=-1).to(emb.device)  # (seq_len, batch_size, emb_dim+class_emb_dim)
 
         gen_x = []
         h_tm1 = (torch.zeros(self.batch_size, self.hidden_dim).to(x.device),
@@ -79,7 +80,7 @@ class Rollout(nn.Module):
                 next_token = next_token.unsqueeze(1)  # Ensure next_token has shape [batch_size, 1]
                 token_emb = self.g_embeddings(next_token).squeeze(1)  # [batch_size, emb_dim]
                 class_emb_current = class_emb[:, i, :]  # [batch_size, emb_dim]
-                x_t = torch.cat([token_emb, class_emb_current], dim=-1)  # [batch_size, emb_dim * 2]
+                x_t = torch.cat([token_emb, class_emb_current], dim=-1)  # [batch_size, emb_dim+class_emb_dim]
             # print("22:", x_t.shape)
             h_tm1 = self.g_recurrent_unit(x_t, h_tm1)
             o_t = self.g_output_unit(h_tm1[0])  # logits not prob
@@ -157,7 +158,7 @@ class Rollout(nn.Module):
 
     def create_recurrent_unit(self):
         """Defines the recurrent process in the LSTM."""
-        return nn.LSTMCell(self.emb_dim * 2, self.hidden_dim)
+        return nn.LSTMCell(self.emb_dim + self.class_emb_dim, self.hidden_dim)
 
     def create_output_unit(self):
         """Defines the output process in the LSTM."""

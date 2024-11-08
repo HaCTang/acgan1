@@ -34,7 +34,7 @@ class Generator(nn.Module):
         self.emb = nn.Embedding(num_emb, emb_dim)
         self.class_emb = nn.Embedding(num_classes, class_emb_dim) # Class embedding
 
-        self.lstm = nn.LSTM(emb_dim * 2, hidden_dim, batch_first=True)
+        self.lstm = nn.LSTM(emb_dim + class_emb_dim, hidden_dim, batch_first=True)
         self.lin = nn.Linear(hidden_dim, num_emb)
         self.softmax = nn.LogSoftmax()
         self.classifier = nn.Linear(hidden_dim, num_classes)

@@ -48,7 +48,7 @@ class Discriminator(nn.Module):
         self.lin_real_fake = nn.Linear(sum(num_filters), 1)  # Binary output for real/fake
         self.classifier = nn.Linear(sum(num_filters), num_classes)  # Class output
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=0.0001)
         self.adversarial_loss = F.binary_cross_entropy
         self.auxiliary_loss = F.cross_entropy
 
@@ -67,9 +67,9 @@ class Discriminator(nn.Module):
            
         pooled_outputs = []
         for conv in self.convs:
-            conv_out = F.relu(conv(emb))
-            pooled = F.max_pool2d(conv_out, (conv_out.size(2), 1))
-            pooled_outputs.append(pooled.squeeze(3))
+            conv_out = F.relu(conv(emb)).squeeze(3) # (batch_size, num_filters, seq_len)
+            pooled = F.max_pool1d(conv_out, (conv_out.size(2)))
+            pooled_outputs.append(pooled.squeeze(2)) # (batch_size, num_filters)
 
         # Concatenate the pooled outputs and flatten
         h_pool = torch.cat(pooled_outputs, 1)
@@ -159,14 +159,14 @@ if __name__ == "__main__":
     discriminator = Discriminator(sequence_length, num_classes, vocab_size, emb_dim, filter_sizes, use_cuda, num_filters, dropout)
 
     # Real data (batch_size, seq_len)
-    real_data = torch.randint(0, vocab_size, (32, sequence_length))
-    real_class_labels = torch.randint(0, num_classes, (32,))
-    real_labels = torch.ones((32, 1), dtype=torch.float)  # Real data labels (all 1s)
+    real_data = torch.randint(0, vocab_size, (32, sequence_length)).to(torch.device("cuda"))
+    real_class_labels = torch.randint(0, num_classes, (32,)).to(torch.device("cuda"))
+    real_labels = torch.ones((32, 1), dtype=torch.float).to(torch.device("cuda"))  # Real data labels (all 1s)
 
     # Fake data (batch_size, seq_len)
-    fake_data = torch.randint(0, vocab_size, (32, sequence_length))
-    fake_class_labels = torch.randint(0, num_classes, (32,))
-    fake_labels = torch.zeros((32, 1), dtype=torch.float)  # Fake data labels (all 0s)
+    fake_data = torch.randint(0, vocab_size, (32, sequence_length)).to(torch.device("cuda"))
+    fake_class_labels = torch.randint(0, num_classes, (32,)).to(torch.device("cuda"))
+    fake_labels = torch.zeros((32, 1), dtype=torch.float).to(torch.device("cuda"))  # Fake data labels (all 0s)
 
     # Forward pass for real data
     real_output, real_class_output = discriminator(real_data)

@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import torch.nn.functional as F
+
 class NLLLoss(nn.Module):
     """Self-Defined NLLLoss Function
         计算总的损失，没有显示明确的损失归一化处理，归一化可以除以(sequence_length * batch_size)
@@ -10,6 +12,10 @@ class NLLLoss(nn.Module):
         weight: Tensor (num_class, )
     """
     def __init__(self, weight):
+        """
+        Args:
+            weight: Tensor (num_class, )
+        """
         super(NLLLoss, self).__init__()
         self.weight = weight
 
@@ -19,15 +25,12 @@ class NLLLoss(nn.Module):
             prob: (N, C) 
             target : (N, )
         """
-        N = target.size(0)
-        C = prob.size(1)
-        weight = Variable(self.weight).view((1, -1))
-        weight = weight.expand(N, C)  # (N, C)
+
         if prob.is_cuda:
             weight = weight.cuda()
-        prob = weight * prob
+        prob = prob * weight # (N, C) * (C, ) = (N, C)
 
-        one_hot = torch.zeros((N, C))
+        one_hot = torch.zeros(prob.shape)
         if prob.is_cuda:
             one_hot = one_hot.cuda()
         one_hot.scatter_(1, target.data.view((-1,1)), 1)
@@ -37,44 +40,6 @@ class NLLLoss(nn.Module):
             one_hot = one_hot.cuda()
         loss = torch.masked_select(prob, one_hot)
         return -torch.sum(loss)
-
-
-
-# import torch
-# import torch.nn as nn
-# from torch.autograd import Variable
-
-# class NLLLoss(nn.Module):
-#     """Self-Defined NLLLoss Function for the Generator"""
-
-#     def __init__(self, weight):
-#         super(NLLLoss, self).__init__()
-#         self.weight = weight
-
-#     def forward(self, prob, target):
-#         """
-#         Args:
-#             prob: (N, C) - Probability distribution over classes (logits)
-#             target: (N, ) - Ground truth class labels
-#         """
-#         N = target.size(0)
-#         C = prob.size(1)
-#         weight = Variable(self.weight).view((1, -1))
-#         weight = weight.expand(N, C)  # (N, C)
-#         if prob.is_cuda:
-#             weight = weight.cuda()
-#         prob = weight * prob
-
-#         one_hot = torch.zeros((N, C))
-#         if prob.is_cuda:
-#             one_hot = one_hot.cuda()
-#         one_hot.scatter_(1, target.data.view((-1, 1)), 1)
-#         one_hot = one_hot.type(torch.ByteTensor)
-#         one_hot = Variable(one_hot)
-#         if prob.is_cuda:
-#             one_hot = one_hot.cuda()
-#         loss = torch.masked_select(prob, one_hot)
-#         return -torch.sum(loss)
 
 
 class ACGANLoss(nn.Module):
@@ -118,10 +83,15 @@ def generator_loss(fake_pred, real_class_pred, real_class_target):
         real_class_target: (N, ) - True class labels for the generator
     """
     # Negative Log-Likelihood Loss for Generator
-    nll_loss = NLLLoss(weight=torch.ones(fake_pred.size(1)))
+    weight = torch.ones_like(fake_pred.size(1))
+    nll_loss = NLLLoss(weight)
     gen_loss = nll_loss(fake_pred, real_class_target)
     
+    # or use PyTorch's built-in NLLLoss    
+    loss = F.nll_loss(fake_pred.log(), real_class_target, weight=weight)
+    
     return gen_loss
+    return loss
 
 
 def discriminator_loss(real_fake_pred, real_fake_target, class_pred, class_target):

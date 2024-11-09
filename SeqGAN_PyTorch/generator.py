@@ -8,7 +8,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from torch.distributions import Categorical
 
 class Generator(nn.Module):
@@ -45,11 +44,11 @@ class Generator(nn.Module):
         self.auxiliary_loss = F.cross_entropy
         self.init_params()
 
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimizer = torch.optim.AdamW(self.parameters(), lr=learning_rate)
 
     def init_hidden(self, batch_size):
-        h = Variable(torch.zeros((1, batch_size, self.hidden_dim)))
-        c = Variable(torch.zeros((1, batch_size, self.hidden_dim)))
+        h = torch.zeros((1, batch_size, self.hidden_dim))
+        c = torch.zeros((1, batch_size, self.hidden_dim))
         if self.use_cuda:
             h, c = h.cuda(), c.cuda()
         return h, c
@@ -70,14 +69,14 @@ class Generator(nn.Module):
         emb = self.emb(x) # (batch_size, seq_len, emb_dim)
 
         # Embedding for class labels and expand to match sequence length
-        class_emb = self.class_emb(class_label).unsqueeze(1)  # (batch_size, 1, emb_dim)
-        class_emb = class_emb.expand(-1, x.size(1), -1)       # (batch_size, seq_len, emb_dim)
+        class_emb = self.class_emb(class_label).unsqueeze(1)  # (batch_size, 1, class_emb_dim)
+        class_emb = class_emb.expand(-1, x.size(1), -1)       # (batch_size, seq_len, class_emb_dim)
         # Concatenate token embeddings with class embeddings
-        combined_emb = torch.cat([emb, class_emb], dim=-1)  # (batch_size, seq_len, emb_dim+class_emb_dim)
+        combined_emb = torch.cat([emb, class_emb], dim=-1)  # (batch_size, seq_len, emb_dim + class_emb_dim)
 
-        output, hidden = self.lstm(combined_emb, hidden)
-        pred = self.lin(output.contiguous().view(-1, self.hidden_dim))
-        class_logits = self.classifier(output[:, -1, :]) 
+        output, hidden = self.lstm(combined_emb, hidden) # output: (batch_size, seq_len, hidden_dim)
+        pred = self.lin(output.contiguous().view(-1, self.hidden_dim)) # (batch_size * seq_len, hidden_dim)
+        class_logits = self.classifier(output[:, -1, :]) # (batch_size, num_classes)
         return pred.view(x.size(0), x.size(1), -1), class_logits, hidden
         #return pred
 
@@ -217,7 +216,8 @@ def test_generator():
     # Hyperparameters for testing
     num_emb = 10
     batch_size = 4
-    emb_dim = 8
+    emb_dim = 12
+    class_emb_dim = 4
     hidden_dim = 16
     num_classes = 3
     use_cuda = True
@@ -226,8 +226,8 @@ def test_generator():
     learning_rate = 0.001
 
     # Initialize generator
-    generator = Generator(num_emb, batch_size, emb_dim, hidden_dim, num_classes, use_cuda, 
-                          sequence_length, start_token, learning_rate)
+    generator = Generator(num_emb=num_emb, batch_size=batch_size, emb_dim=emb_dim, class_emb_dim=class_emb_dim, hidden_dim=hidden_dim, num_classes=num_classes, use_cuda=use_cuda, 
+                          sequence_length=sequence_length, start_token=start_token, learning_rate=learning_rate)
 
     # Generate sample class labels
     class_labels = torch.randint(0, num_classes, (batch_size,))
@@ -240,7 +240,7 @@ def test_generator():
 
     # Create random input sequence and class labels for pretrain step
     input_seq = torch.randint(0, num_emb, (batch_size, sequence_length))
-    pretrain_loss = generator.pretrain_step(input_seq, class_labels)
+    pretrain_loss = generator.pretrain_step(input_seq)
     print("Pretrain Loss:", pretrain_loss)
 
     # Create random rewards for train step

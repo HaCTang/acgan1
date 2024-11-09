@@ -67,9 +67,12 @@ class Discriminator(nn.Module):
            
         pooled_outputs = []
         for conv in self.convs:
-            conv_out = F.relu(conv(emb))
-            pooled = F.max_pool2d(conv_out, (conv_out.size(2), 1))
-            pooled_outputs.append(pooled.squeeze(3))
+            # conv_out = F.relu(conv(emb))
+            # pooled = F.max_pool2d(conv_out, (conv_out.size(2), 1))
+            # pooled_outputs.append(pooled.squeeze(3))
+            conv_out = F.relu(conv(emb)).squeeze(3) # (batch_size, num_filters, seq_len)
+            pooled = F.max_pool1d(conv_out, (conv_out.size(2)))
+            pooled_outputs.append(pooled.squeeze(2)) # (batch_size, num_filters)
 
         # Concatenate the pooled outputs and flatten
         h_pool = torch.cat(pooled_outputs, 1)
@@ -98,7 +101,7 @@ class Discriminator(nn.Module):
             class_pred: (N, num_classes) - Predictions for class classification
             class_target: (N, ) - Ground truth class labels
         """
-        real_fake_loss = self.adversarial_loss(real_fake_pred, real_fake_target)
+        # real_fake_loss = self.adversarial_loss(real_fake_pred, real_fake_target)
         class_loss = self.auxiliary_loss(class_pred, class_target)
         
         l2_loss = 0
@@ -106,7 +109,16 @@ class Discriminator(nn.Module):
             l2_loss += torch.norm(param, p=2)
         l2_loss = self.l2_reg_lambda * l2_loss
 
-        total_loss = 0.5 * (real_fake_loss + class_loss) + l2_loss      
+        # Wasserstein loss
+        wgan_loss = torch.mean(real_fake_pred) if real_fake_target[0] == 1 else -torch.mean(real_fake_pred)
+        wgan_loss = self.wgan_reg_lambda * wgan_loss
+
+        # total_loss = 0.5 * (real_fake_loss + class_loss) + 0.5 * (l2_loss + wgan_loss)     
+        # total_loss = class_loss + l2_loss + wgan_loss
+        total_loss = l2_loss + wgan_loss
+        # print("class_loss:", class_loss)
+        # print("l2loss:", l2_loss)
+        # print("wloss:", wgan_loss)
         return total_loss
 
     def train_step(self, x, real_fake_labels, class_labels, dropout=0.2):

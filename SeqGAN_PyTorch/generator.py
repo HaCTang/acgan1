@@ -28,7 +28,7 @@ class Generator(nn.Module):
         self.learning_rate = learning_rate
         self.reward_gamma = reward_gamma
         self.grad_clip = grad_clip
-        self.temperature = 1.0
+        self.temperature = 1.5
 
         #self.g_count = 0 # for reporting
 
@@ -41,7 +41,8 @@ class Generator(nn.Module):
         self.softmax = nn.LogSoftmax()
         self.classifier = nn.Linear(hidden_dim, num_classes)
 
-        self.adversarial_loss = F.cross_entropy
+        # self.adversarial_loss = F.cross_entropy
+        self.adversarial_loss = nn.NLLLoss()
         self.auxiliary_loss = F.cross_entropy
         self.init_params()
 
@@ -138,7 +139,8 @@ class Generator(nn.Module):
         logits = logits.view(-1, self.num_emb)  # [batch_size * seq_len, num_emb]
         target = x.view(-1)  # [batch_size * seq_len]
         # Calculate loss
-        token_loss = self.adversarial_loss(logits, target)
+        # token_loss = self.adversarial_loss(logits, target)
+        token_loss = self.adversarial_loss(F.log_softmax(logits, dim=-1), target)
 
         # Backward pass
         token_loss.backward()

@@ -537,6 +537,8 @@ class ACSeqGAN(object):
             t_bar.set_postfix(G_loss=mean_g_loss)
 
         samples = self.generate_samples(self.GENERATED_NUM)
+        print('samples:', samples)
+        
         self.mle_loader.create_batches(samples) # For MLE training, 暂时没用
 
         if self.LAMBDA_1 != 0:

@@ -14,7 +14,7 @@ from torch.distributions import Categorical
 class Generator(nn.Module):
     """Generator """
     def __init__(self, num_emb, batch_size, emb_dim, class_emb_dim, hidden_dim, num_classes, use_cuda,
-                 sequence_length, start_token, learning_rate=0.001, reward_gamma=0.95, grad_clip=5.0):
+                 sequence_length, start_token, learning_rate=0.001, reward_gamma=0.95, grad_clip=500):
         super(Generator, self).__init__()
         self.num_emb = num_emb
         self.batch_size = batch_size
@@ -77,14 +77,18 @@ class Generator(nn.Module):
     def pretrain_loss(self, x):
         """
         Calculates the pretraining loss.
+        x: (batch_size, seq_len)
+        logits: (batch_size, seq_len, vocab_size)
         """
         hidden = self.init_hidden(x.size(0))
         x = x.to(self.emb.weight.device)
         hidden = tuple(h.to(self.emb.weight.device) for h in hidden)
-        logits, _, _ = self.forward(x, torch.zeros(x.size(0), dtype=torch.long), hidden)
+        logits, _, _ = self.forward(x, torch.zeros(x.size(0), dtype=torch.long), hidden) # (batch_size, seq_len, vocab_size)
         logits = logits.view(-1, self.num_emb)
+        logits = torch.clamp(logits, min=1e-20, max=1.0)
         target = x.view(-1)
-        loss = F.nll_loss(logits, target, reduction='sum')
+        target = F.one_hot(target, num_classes=self.num_emb).float()
+        loss = -torch.sum(target * torch.log(logits)) / (self.sequence_length * self.batch_size)
         return loss
 
     def pretrain_step(self, x):
@@ -94,8 +98,25 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
         loss = self.pretrain_loss(x)
         loss.backward()
+        # # Debugging statement to check gradient values
+        # for name, param in self.named_parameters():
+        #     if param.requires_grad and param.grad is not None:
+        #         print(f"Gradient for {name}: {param.grad}")
+
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
         self.optimizer.step()
+
+        # # Ensure that optimizer is updating parameters correctly
+        # with torch.no_grad():
+        #     for name, param in self.named_parameters():
+        #         if param.requires_grad:
+        #             print(f"After optimizer step, Parameter {name}: {param.data}")
+
+        # # Debugging statement to ensure parameters are being updated
+        # for name, param in self.named_parameters():
+        #     if param.requires_grad:
+        #         print(f"Parameter {name}: {param.data}")
+
         return loss.item()
 
     def train_loss(self, x, class_label, rewards):
@@ -114,7 +135,7 @@ class Generator(nn.Module):
         one_hot = F.one_hot(target, num_classes=self.num_emb).float()
         selected_log_prob = torch.sum(one_hot * log_probs, dim=-1)
         rewards = rewards.reshape(-1)
-        loss = -torch.sum(selected_log_prob * rewards) / self.batch_size
+        loss = -torch.sum(selected_log_prob * rewards) / (self.batch_size * self.sequence_length)
         return loss
 
     def train_step(self, x, class_label, rewards):
@@ -147,3 +168,39 @@ class Generator(nn.Module):
             x = next_token.unsqueeze(1)
 
         return torch.stack(samples, dim=1), class_label
+
+class NLLLoss(nn.Module):
+    """Self-Defined NLLLoss Function
+        计算总的损失，没有显示明确的损失归一化处理，归一化可以除以(sequence_length * batch_size)
+    Args:
+        weight: Tensor (num_class, )
+    """
+    def __init__(self, weight):
+        super(NLLLoss, self).__init__()
+        self.weight = weight
+
+    def forward(self, prob, target):
+        """
+        Args:
+            prob: (N, C) 
+            target : (N, )
+        """
+        N = target.size(0)
+        C = prob.size(1)
+        weight = Variable(self.weight).view((1, -1))
+        weight = weight.expand(N, C)  # (N, C)
+        if prob.is_cuda:
+            weight = weight.cuda()
+        prob = weight * prob
+
+        one_hot = torch.zeros((N, C))
+        if prob.is_cuda:
+            one_hot = one_hot.cuda()
+        one_hot.scatter_(1, target.data.view((-1,1)), 1)
+        one_hot = one_hot.type(torch.ByteTensor)
+        one_hot = Variable(one_hot)
+        one_hot = one_hot.bool()
+        if prob.is_cuda:
+            one_hot = one_hot.cuda()
+        loss = -torch.masked_select(prob, one_hot)
+        return torch.sum(loss)

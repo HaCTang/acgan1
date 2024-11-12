@@ -125,7 +125,7 @@ class ACSeqGAN(object):
         if 'g_hidden_dim' in params:
             self.g_hidden_dim = params['g_hidden_dim']
         else:
-            self.g_hidden_dim = 32
+            self.g_hidden_dim = 64
         if 'g_class_hidden_dim' in params:
             self.g_class_emb_dim = params['g_class_hidden_dim']
         else:

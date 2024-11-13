@@ -29,7 +29,7 @@ class Generator(nn.Module):
         self.learning_rate = learning_rate
         self.reward_gamma = reward_gamma
         self.grad_clip = grad_clip
-        self.temperature = 2.5
+        self.temperature = 2.0
 
         self.emb = nn.Embedding(num_emb, emb_dim)
         # nn.init.normal_(self.emb.weight, std=0.1)
@@ -62,22 +62,22 @@ class Generator(nn.Module):
             class_label: (batch_size, ), class label for the sequences
         """
         x = x.to(self.emb.weight.device)
-        class_label = class_label.to(self.class_emb.weight.device)
+        # class_label = class_label.to(self.class_emb.weight.device)
         hidden = tuple(h.to(self.emb.weight.device) for h in hidden)
         emb = self.pretrain_emb(x) # (batch_size, seq_len, emb_dim)
 
-        # # Embedding for class labels and expand to match sequence length
-        class_emb = self.class_emb(class_label).unsqueeze(1)  # (batch_size, 1, emb_dim)
-        class_emb = class_emb.expand(-1, x.size(1), -1)       # (batch_size, seq_len, emb_dim)
-        # # Concatenate token embeddings with class embeddings
-        combined_emb = torch.cat([emb, class_emb], dim=-1)  # (batch_size, seq_len, emb_dim + class_emb_dim)
+        # # # Embedding for class labels and expand to match sequence length
+        # class_emb = self.class_emb(class_label).unsqueeze(1)  # (batch_size, 1, emb_dim)
+        # class_emb = class_emb.expand(-1, x.size(1), -1)       # (batch_size, seq_len, emb_dim)
+        # # # Concatenate token embeddings with class embeddings
+        # combined_emb = torch.cat([emb, class_emb], dim=-1)  # (batch_size, seq_len, emb_dim + class_emb_dim)
 
         output, hidden = self.lstm(emb, hidden)
         logits = self.lin(output.contiguous().view(-1, self.hidden_dim))
         logits = logits.view(x.size(0), x.size(1), -1)
 
         # class_logits = self.classifier(output[:, -1, :])
-        return logits, combined_emb, hidden
+        return logits, emb, hidden
         # return logits.view(x.size(0), x.size(1), -1), class_logits, hidden
 
     def pretrain_loss(self, x):
@@ -89,7 +89,6 @@ class Generator(nn.Module):
         hidden = self.init_hidden(x.size(0))
         x = x.to(self.emb.weight.device)
         hidden = tuple(h.to(self.emb.weight.device) for h in hidden)
-        # logits, _, _ = self.forward(x, torch.zeros(x.size(0), dtype=torch.long), hidden) # (batch_size, seq_len, vocab_size)
         logits, _, _ = self.forward(x, torch.zeros(x.size(0), dtype=torch.long), hidden) # (batch_size, seq_len, vocab_size)
         logits = nn.Softmax(dim=-1)(logits)
         logits = logits.view(-1, self.num_emb)

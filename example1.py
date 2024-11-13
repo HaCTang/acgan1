@@ -5,8 +5,8 @@ import torch
 model = ACSeqGAN('toy', 'mol_metrics', params={'PRETRAIN_GEN_EPOCHS':100,
                                                'PRETRAIN_DIS_EPOCHS':1, 
                                                'd_num_classes': 1,
-                                               'MAX_LENGTH': 60})
-model.load_training_set('./qm9_5k.csv')
+                                               })
+model.load_training_set('./toy.csv')
 # model.set_training_program(['novelty'], [1])
 model.set_training_program(['druglikeliness'], [100])
 model.load_metrics()

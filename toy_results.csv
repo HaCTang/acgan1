@@ -1,2 +1,2 @@
 exp_name,Batch,mean_length,n_samples,uniq_samples,good_samples,bad_samples,model_samples
-toy,0,27.399657890524967,99968,92622,854,99114,toy_0
+toy,0,12.40220870678617,49984,42691,5047,44937,toy_0

@@ -231,7 +231,7 @@ class ACSeqGAN(object):
         # will be set as 1.5 times the maximum length in the
         # trining set.
         if not hasattr(self, 'MAX_LENGTH'):
-            self.MAX_LENGTH = int(len(max(self.molecules, key=len)) * 1.5)
+            self.MAX_LENGTH = int(len(max(self.molecules, key=len)) * 1.5 + 1)
 
         # Encode samples
         to_use = [sample for sample in self.train_samples
@@ -521,7 +521,7 @@ class ACSeqGAN(object):
             print('\nPRETRAINING')
             print('============================\n')
             print('GENERATOR PRETRAINING')
-
+        # self.generator.optimizer = torch.optim.Adam(self.generator.parameters(), lr=self.generator.learning_rate)
         t_bar = trange(self.PRETRAIN_GEN_EPOCHS) #创建一个进度条
         for epoch in t_bar:
             supervised_g_losses = []
@@ -560,6 +560,7 @@ class ACSeqGAN(object):
                     x, x_label = zip(*x_batch)
 
                     # Convert to tensors
+                    print([len(_) for _ in x])
                     x = torch.tensor(x, dtype=torch.long)
                     y_batch = torch.tensor(np.array(y_batch), dtype=torch.float)
                     x_label = torch.tensor(x_label, dtype=torch.int64)
@@ -587,7 +588,7 @@ class ACSeqGAN(object):
         generated_samples = []
 
         for _ in range(int(num / self.GEN_BATCH_SIZE)):
-            for class_label in range(self.NUM_CLASS):
+            for class_label in range(self.NUM_CLASS - 1):
                 class_label_tensor = torch.tensor([class_label] * self.GEN_BATCH_SIZE, dtype=torch.int64)
                 gen_x, _ = self.generator.generate(class_label_tensor)
                 for i in range(self.GEN_BATCH_SIZE):

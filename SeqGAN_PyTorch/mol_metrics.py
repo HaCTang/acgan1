@@ -316,7 +316,8 @@ def build_vocab(smiles=None, pad_char='_', start_char='^'):
     # branches
     chars = chars + ['(', ')']
     # cycles
-    chars = chars + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '<', '>']
+    # chars = chars + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '<', '>']
+    chars = chars + ['1', '2', '3', '4', '5', '6', '7',]
     # anit/clockwise
     chars = chars + ['@']
     # directional bonds
@@ -350,8 +351,8 @@ def encode(smi, max_len, char_dict):
     # replace double char atoms symbols
     smi = smi.replace('Cl', 'Q')
     smi = smi.replace('Br', 'W')
-    smi = smi.replace('%10', '<')
-    smi = smi.replace('%11', '>')
+    # smi = smi.replace('%10', '<')
+    # smi = smi.replace('%11', '>')
 
     atom_spec = False
     new_chars = [''] * max_len
@@ -407,9 +408,9 @@ def decode(ords, ord_dict):
     # replace proxy atoms for double char atoms symbols
     smi = smi.replace('Q', 'Cl')
     smi = smi.replace('W', 'Br')
-    # replace cycle symbols
-    smi = smi.replace('<', '%10')
-    smi = smi.replace('>', '%11')
+    # # replace cycle symbols
+    # smi = smi.replace('<', '%10')
+    # smi = smi.replace('>', '%11')
 
     return smi
 

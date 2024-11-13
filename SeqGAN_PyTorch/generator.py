@@ -15,7 +15,7 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 class Generator(nn.Module):
     """Generator """
     def __init__(self, num_emb, batch_size, emb_dim, class_emb_dim, hidden_dim, num_classes, use_cuda,
-                 sequence_length, start_token, learning_rate=0.0001, reward_gamma=0.95, grad_clip=5):
+                 sequence_length, start_token, learning_rate=0.001, reward_gamma=0.95, grad_clip=5):
         super(Generator, self).__init__()
         self.num_emb = num_emb
         self.batch_size = batch_size
@@ -29,7 +29,7 @@ class Generator(nn.Module):
         self.learning_rate = learning_rate
         self.reward_gamma = reward_gamma
         self.grad_clip = grad_clip
-        self.temperature = 2.0
+        self.temperature = 1.0
 
         self.emb = nn.Embedding(num_emb, emb_dim)
         # nn.init.normal_(self.emb.weight, std=0.1)
@@ -53,7 +53,7 @@ class Generator(nn.Module):
 
     def init_params(self):
         for param in self.parameters():
-            param.data.uniform_(-0.05, 0.05)
+            param.data.normal_(0, 0.01)
 
     def forward(self, x, class_label, hidden):
         """
@@ -90,12 +90,23 @@ class Generator(nn.Module):
         x = x.to(self.emb.weight.device)
         hidden = tuple(h.to(self.emb.weight.device) for h in hidden)
         logits, _, _ = self.forward(x, torch.zeros(x.size(0), dtype=torch.long), hidden) # (batch_size, seq_len, vocab_size)
-        logits = nn.Softmax(dim=-1)(logits)
-        logits = logits.view(-1, self.num_emb)
-        logits = torch.clamp(logits, min=1e-20, max=1.0)
-        target = x.view(-1)
-        target = F.one_hot(target, num_classes=self.num_emb).float()
-        loss = -torch.sum(target * torch.log(logits)) / self.batch_size
+        labels = x.detach().clone()
+        
+        # first_pad_token = (labels == self.num_emb - 1).to(torch.long)
+        # first_pad_token = torch.argmax(first_pad_token, dim=-1)
+        # for i in range(first_pad_token.size(0)):
+        #     labels[i, first_pad_token[i]+1:] = -100
+        
+        labels = labels[:, 1:].contiguous().view(-1)  # (batch_size * seq_len)
+
+        logits = logits[:, :-1, :].contiguous().view(-1, self.num_emb)  # (batch_size * seq_len, vocab_size)
+        loss = F.cross_entropy(logits, labels, ignore_index=-100)
+        # logits = logits.view(-1, self.num_emb)
+        # logits = nn.Softmax(dim=-1)(logits)
+        # logits = torch.clamp(logits, min=1e-20, max=1.0)
+        # target = x.view(-1)
+        # target = F.one_hot(target, num_classes=self.num_emb).float()
+        # loss = -torch.sum(target * torch.log(logits)) / self.batch_size
         return loss
 
     def pretrain_step(self, x):
@@ -166,20 +177,36 @@ class Generator(nn.Module):
             hidden = tuple(h.cuda() for h in hidden)
 
         samples = []
-        is_end = torch.zeros(self.batch_size, dtype=torch.bool, device=x.device)  # Initialize is_end as False
+        # is_end = torch.zeros(self.batch_size, dtype=torch.bool, device=x.device)  # Initialize is_end as False
+        with torch.no_grad():
+            for _ in range(self.sequence_length):
+                logits, _, hidden = self.forward(x, class_label, hidden)  # (batch_size, seq_len, vocab_size)
+                probs = F.softmax(logits[:, -1, :] / self.temperature, dim=-1)  # [batch_size, vocab_size]
+                next_token = torch.multinomial(probs, 1).squeeze()  # [batch_size]
+                samples.append(next_token)
+                x = next_token.unsqueeze(1)  # [batch_size, 1]
+        samples = torch.stack(samples, dim=1)
+        first_pad_token = (samples == self.num_emb - 1).to(torch.long)
+        first_pad_token = torch.argmax(first_pad_token, dim=-1)
+        for i in range(first_pad_token.size(0)):
+            if first_pad_token[i] < self.sequence_length - 1:
+                samples[i, first_pad_token[i]+1:] = self.num_emb - 1
+        return samples, class_label
 
-        for _ in range(self.sequence_length):
-            logits, _, hidden = self.forward(x, class_label, hidden)  # (batch_size, seq_len, vocab_size)
-            probs = F.softmax(logits[:, -1, :] / self.temperature, dim=-1)  # [batch_size, vocab_size]
-            next_token = torch.multinomial(probs, 1).squeeze()  # [batch_size]
-            next_token[is_end] = 47
-            samples.append(next_token)
-            is_end |= (next_token == 47)
-            if is_end.all():
-                break
-            x = next_token.unsqueeze(1)  # [batch_size, 1]
 
-        return torch.stack(samples, dim=1), class_label
+        # for _ in range(self.sequence_length):
+        #     logits, _, hidden = self.forward(x, class_label, hidden)  # (batch_size, seq_len, vocab_size)
+        #     probs = F.softmax(logits[:, -1, :] / self.temperature, dim=-1)  # [batch_size, vocab_size]
+        #     with torch.no_grad():  # Ensure stability by avoiding in-place modifications affecting autograd
+        #         next_token = torch.multinomial(probs, 1).squeeze()  # [batch_size]
+        #     next_token[is_end] = 47
+        #     samples.append(next_token)
+        #     is_end |= (next_token == self.num_emb - 1)
+        #     if is_end.all():
+        #         break
+        #     x = next_token.unsqueeze(1)  # [batch_size, 1]
+
+        # return torch.stack(samples, dim=1), class_label
 
 class NLLLoss(nn.Module):
     """Self-Defined NLLLoss Function

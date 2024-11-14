@@ -90,9 +90,9 @@ class Rollout(nn.Module):
 
         return torch.stack(gen_x, dim=1)  # batch_size x seq_length
 
-    def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, D_weight=1):
+    def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, Dweight1=1, Dweight2=1):
         """Calculates the rewards for a list of SMILES strings."""
-        reward_weight = 1 - D_weight
+        reward_weight1 = 1 - Dweight1
         rewards = [0] * (self.sequence_length)
         for _ in range(rollout_num):
             already = []
@@ -115,11 +115,11 @@ class Rollout(nn.Module):
                 yclasspred = yclasspred_for_auc.clone() if yclasspred_for_auc is not None else None
                 
                 if reward_fn:
-                    ypred = D_weight * ypred
+                    ypred = Dweight1 * ypred
                     rew = reward_fn(generated_seqs.cpu().numpy())
                     
                     for k, r in zip(gind, rew):
-                        ypred[k] += reward_weight * r
+                        ypred[k] += reward_weight1 * r
 
                     for j, k in enumerate(gind):
                         if input_x[k, given_num] == self.pad_num and input_x[k, given_num - 1] == self.pad_num:
@@ -143,7 +143,7 @@ class Rollout(nn.Module):
             
             if reward_fn:
                 input_x_list = input_x.cpu().tolist()
-                ypred = D_weight * ypred_for_auc + reward_weight * torch.tensor(reward_fn(input_x_list).reshape(-1, 1), device=ypred_for_auc.device, dtype=ypred_for_auc.dtype)
+                ypred = Dweight1 * ypred_for_auc + reward_weight1 * torch.tensor(reward_fn(input_x_list).reshape(-1, 1), device=ypred_for_auc.device, dtype=ypred_for_auc.dtype)
             else:
                 ypred = ypred_for_auc
             

@@ -493,8 +493,8 @@ def compute_results(reward, model_samples, train_data, ord_dict,
     results['good_samples'] = len(verified_samples)
     results['bad_samples'] = len(unverified_samples)
 
-    if verbose:
-        print_results(verified_samples, unverified_samples, [], results)
+    # if verbose:
+    #     print_results(verified_samples, unverified_samples, [], results)
 
     if not verified_samples:
         verified_samples = 'c1ccccc1'

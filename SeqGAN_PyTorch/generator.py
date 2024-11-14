@@ -116,24 +116,9 @@ class Generator(nn.Module):
         self.optimizer.zero_grad()
         loss = self.pretrain_loss(x)
         loss.backward()
-        # # Debugging statement to check gradient values
-        # for name, param in self.named_parameters():
-        #     if param.requires_grad and param.grad is not None:
-        #         print(f"Gradient for {name}: {param.grad}")
 
         torch.nn.utils.clip_grad_norm_(self.parameters(), self.grad_clip)
         self.optimizer.step()
-
-        # # Ensure that optimizer is updating parameters correctly
-        # with torch.no_grad():
-        #     for name, param in self.named_parameters():
-        #         if param.requires_grad:
-        #             print(f"After optimizer step, Parameter {name}: {param.data}")
-
-        # # Debugging statement to ensure parameters are being updated
-        # for name, param in self.named_parameters():
-        #     if param.requires_grad:
-        #         print(f"Parameter {name}: {param.data}")
 
         return loss.item()
 

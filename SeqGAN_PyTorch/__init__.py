@@ -537,8 +537,7 @@ class ACSeqGAN(object):
             t_bar.set_postfix(G_loss=mean_g_loss)
 
         samples = self.generate_samples(self.GENERATED_NUM)
-        print('samples:', samples)
-        
+        # print('samples:', samples)
         self.mle_loader.create_batches(samples) # For MLE training, 暂时没用
 
         if self.LAMBDA_1 != 0:
@@ -560,7 +559,7 @@ class ACSeqGAN(object):
                     x, x_label = zip(*x_batch)
 
                     # Convert to tensors
-                    print([len(_) for _ in x])
+                    # print([len(_) for _ in x])
                     x = torch.tensor(x, dtype=torch.long)
                     y_batch = torch.tensor(np.array(y_batch), dtype=torch.float)
                     x_label = torch.tensor(x_label, dtype=torch.int64)

@@ -147,13 +147,23 @@ class Generator(nn.Module):
         rewards = rewards.to(self.emb.weight.device)
         hidden = tuple(h.to(self.emb.weight.device) for h in hidden)
         logits, _, _ = self.forward(x, class_label, hidden)
+        
+        labels = x.detach().clone()
+        labels = labels[:, 1:].contiguous().view(-1)  # (batch_size * (seq_len - 1))
+        logits = logits[:, :-1, :].contiguous().view(-1, self.num_emb)  # (batch_size * (seq_len - 1), vocab_size)
+        
+        rewards = rewards[:, 1:].contiguous().view(-1)  # Ensure rewards match the size of labels
+
         log_probs = F.log_softmax(logits, dim=-1)
         log_probs = log_probs.view(-1, self.num_emb)
-        target = x.view(-1)
+        target = labels.view(-1)
         one_hot = F.one_hot(target, num_classes=self.num_emb).float()
         selected_log_prob = torch.sum(one_hot * log_probs, dim=-1)
         rewards = rewards.reshape(-1)
         loss = -torch.sum(selected_log_prob * rewards) / (self.batch_size * self.sequence_length)
+    
+        # loss = F.cross_entropy(logits, labels, ignore_index=-100, reduction='none')
+        # loss = torch.sum(loss * rewards) / (self.batch_size * (self.sequence_length - 1))
         return loss
 
     def train_step(self, x, class_label, rewards):
@@ -192,54 +202,3 @@ class Generator(nn.Module):
             if first_pad_token[i] < self.sequence_length - 1:
                 samples[i, first_pad_token[i]+1:] = self.num_emb - 1
         return samples, class_label
-
-
-        # for _ in range(self.sequence_length):
-        #     logits, _, hidden = self.forward(x, class_label, hidden)  # (batch_size, seq_len, vocab_size)
-        #     probs = F.softmax(logits[:, -1, :] / self.temperature, dim=-1)  # [batch_size, vocab_size]
-        #     with torch.no_grad():  # Ensure stability by avoiding in-place modifications affecting autograd
-        #         next_token = torch.multinomial(probs, 1).squeeze()  # [batch_size]
-        #     next_token[is_end] = 47
-        #     samples.append(next_token)
-        #     is_end |= (next_token == self.num_emb - 1)
-        #     if is_end.all():
-        #         break
-        #     x = next_token.unsqueeze(1)  # [batch_size, 1]
-
-        # return torch.stack(samples, dim=1), class_label
-
-class NLLLoss(nn.Module):
-    """Self-Defined NLLLoss Function
-        计算总的损失，没有显示明确的损失归一化处理，归一化可以除以(sequence_length * batch_size)
-    Args:
-        weight: Tensor (num_class, )
-    """
-    def __init__(self, weight):
-        super(NLLLoss, self).__init__()
-        self.weight = weight
-
-    def forward(self, prob, target):
-        """
-        Args:
-            prob: (N, C) 
-            target : (N, )
-        """
-        N = target.size(0)
-        C = prob.size(1)
-        weight = Variable(self.weight).view((1, -1))
-        weight = weight.expand(N, C)  # (N, C)
-        if prob.is_cuda:
-            weight = weight.cuda()
-        prob = weight * prob
-
-        one_hot = torch.zeros((N, C))
-        if prob.is_cuda:
-            one_hot = one_hot.cuda()
-        one_hot.scatter_(1, target.data.view((-1,1)), 1)
-        one_hot = one_hot.type(torch.ByteTensor)
-        one_hot = Variable(one_hot)
-        one_hot = one_hot.bool()
-        if prob.is_cuda:
-            one_hot = one_hot.cuda()
-        loss = -torch.masked_select(prob, one_hot)
-        return torch.sum(loss)

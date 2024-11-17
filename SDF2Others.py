@@ -145,8 +145,8 @@ data['length'] = data['smiles'].apply(len)
 Q1 = data['length'].quantile(0.25)
 Q3 = data['length'].quantile(0.75)
 IQR = Q3 - Q1
-lower_bound = Q1 - 3 * IQR
-upper_bound = Q3 + 3 * IQR
+lower_bound = Q1 - 1.5 * IQR
+upper_bound = Q3 + 1.5 * IQR
 print(lower_bound, upper_bound)
 
 #删除箱线图处于outlier的分子
@@ -155,7 +155,7 @@ print(data['length'].describe())
 print(data.head())
 data = data.drop(columns=['length'])
 #删除data['smiles']中所有含Se的分子
-data = data[~data['smiles'].str.contains('Se|se|Ge|Hf|Sb|Ni|Re|Ce|Ba|Cr|K|Ra|Be|La|Li|Sr|Al|Si|Sm|Gd|V|Ca|W|Ta|Os|Fe|Te|Lu|Ga|Mo|Ru|Rh|Tc|Mn|Cu|Zn|Bi|Pt|Pd|Ag|Au|Hg|Pb|Sn|As|Mg')]
+data = data[~data['smiles'].str.contains('8|9|%|Se|se|Ge|Hf|Sb|Ni|Re|Ce|Ba|Cr|K|Ra|Be|La|Li|Sr|Al|Si|Sm|Gd|V|Ca|W|Ta|Os|Fe|Te|Lu|Ga|Mo|Ru|Rh|Tc|Mn|Cu|Zn|Bi|Pt|Pd|Ag|Au|Hg|Pb|Sn|As|Mg')]
 #将[Na+]删除， O=P([O-])(O)OP(=O)([O-])OP(=O)([O-])OCC1O[C@@H](c2ccccc2O)CC1O.[Na+].[Na+].[Na+]
 data['smiles'] = data['smiles'].str.replace('[Na+]', '')
 

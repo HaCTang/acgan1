@@ -1,3 +1,4 @@
-from SeqGAN_PyTorch.classifier import prior_classifier
+from SeqGAN_PyTorch import prior_classifier
 
-prior_classifier('train_NAPro.csv')
+if __name__ == "__main__":
+    prior_classifier('SeqGAN_PyTorch/train_NAPro.csv')

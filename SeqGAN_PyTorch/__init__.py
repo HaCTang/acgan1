@@ -14,7 +14,7 @@ from SeqGAN_PyTorch.data_iter import GenDataIter, DisDataIter
 from SeqGAN_PyTorch.generator import Generator
 from SeqGAN_PyTorch.discriminator import Discriminator
 from SeqGAN_PyTorch.rollout import Rollout
-from SeqGAN_PyTorch.classifier import prior_classifier, classify_smiles
+from .classifier import prior_classifier, classify_smiles
 
 
 # from rdkit import rdBASE

@@ -12,18 +12,17 @@ import os
 
 # Function to load data
 def classifier_data_loader(filepath):
-    print(f"Loading data from {filepath}...")
     data = pd.read_csv(filepath)
-    print("Data loaded successfully.")
     return data
 
 # Function to calculate molecular descriptors
-def calculate_descriptors(smiles_list):
-    descriptor_names = [
-        'MolWt', 'MolLogP', 'NumHAcceptors', 'NumHDonors', 'NumRotatableBonds', 'TPSA',
-        'NumAromaticRings', 'NumAliphaticRings', 'MolMR', 'BalabanJ', 'Chi0v', 'Chi1v',
-        'LabuteASA', 'PEOE_VSA1'
-    ]
+def calculate_descriptors(smiles_list, descriptor_names:list=None):
+    if descriptor_names is None:
+        descriptor_names = [
+            'MolWt', 'MolLogP', 'NumHAcceptors', 'NumHDonors', 'NumRotatableBonds', 'TPSA',
+            'NumAromaticRings', 'NumAliphaticRings', 'MolMR', 'BalabanJ', 'Chi0v', 'Chi1v',
+            'LabuteASA', 'PEOE_VSA1'
+        ]
     calculator = MoleculeDescriptors.MolecularDescriptorCalculator(descriptor_names)
     descriptors = []
     
@@ -33,13 +32,11 @@ def calculate_descriptors(smiles_list):
             descriptors.append(calculator.CalcDescriptors(mol))
         else:
             descriptors.append([np.nan] * len(descriptor_names))
-    
-    print("Descriptors calculated for all SMILES.")
+            
     return pd.DataFrame(descriptors, columns=descriptor_names)
 
 # Function to train the model
 def model_training(X, y):
-    print("Starting model training with cross-validation...")
     clf = RandomForestClassifier(n_estimators=100, random_state=42)
     skf = StratifiedKFold(n_splits=5)
     auc_scores = []
@@ -58,12 +55,10 @@ def model_training(X, y):
             tprs[-1][0] = 0.0
             auc_scores.append(auc(fpr, tpr))
     
-    print("Model training and cross-validation completed.")
     return clf, tprs, mean_fpr
 
 # Function to output the ROC curve figure
 def output_figure(tprs, mean_fpr, output_dir):
-    print(f"Saving ROC curve to {output_dir}...")
     os.makedirs(output_dir, exist_ok=True)
     plt.figure()
     mean_tpr = np.mean(tprs, axis=0)
@@ -80,36 +75,29 @@ def output_figure(tprs, mean_fpr, output_dir):
     plt.legend()
     
     plt.savefig(os.path.join(output_dir, 'roc_curve.pdf'))
-    print("ROC curve saved successfully.")
 
 # Function to train and evaluate the classifier
 def prior_classifier(filepath):
-    try:
-        # Load and prepare data
-        print("Starting the classifier training process...")
-        data = classifier_data_loader(filepath)
-        descriptor_df = calculate_descriptors(data['smiles'])
-        descriptor_df['label'] = data['label']
-        descriptor_df = descriptor_df.dropna()
-        
-        X = descriptor_df.drop('label', axis=1)
-        y = descriptor_df['label']
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        # Train model and evaluate
-        clf, tprs, mean_fpr = model_training(X, y)
-        
-        # Output figure
-        output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../eval_classifier')
-        output_figure(tprs, mean_fpr, output_dir)
-        
-        # Train final model and save it
-        print("Training final model on the entire training set...")
-        clf.fit(X_train, y_train)
-        joblib.dump(clf, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'molecular_classifier.pkl'))
-        print("Final model saved successfully.")
-    except Exception as e:
-        print(f"An error occurred: {e}")
+    # Load and prepare data
+    data = classifier_data_loader(filepath)
+    descriptor_df = calculate_descriptors(data['smiles'])
+    descriptor_df['label'] = data['label']
+    descriptor_df = descriptor_df.dropna()
+    
+    X = descriptor_df.drop('label', axis=1)
+    y = descriptor_df['label']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Train model and evaluate
+    clf, tprs, mean_fpr = model_training(X, y)
+    
+    # Output figure
+    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../eval_classifier')
+    output_figure(tprs, mean_fpr, output_dir)
+    
+    # Train final model and save it
+    clf.fit(X_train, y_train)
+    joblib.dump(clf, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'molecular_classifier.pkl'))
 
 # Function to classify new SMILES
 def classify_smiles(smiles):
@@ -118,6 +106,6 @@ def classify_smiles(smiles):
     prediction = classifier.predict(descriptors)
     return prediction[0]
 
-# If this script is run directly, execute the training and evaluation
-if __name__ == "__main__":
-    prior_classifier('train_NAPro.csv')
+# # If this script is run directly, execute the training and evaluation
+# if __name__ == "__main__":
+#     prior_classifier('train_NAPro.csv')

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import os
 import random
 
@@ -51,7 +53,7 @@ class Generator(nn.Module):
 
     def init_params(self):
         for param in self.parameters():
-            param.data.normal_(0, 0.01)
+            param.data.normal_(0, 0.1)
 
     def forward(self, x, class_label, hidden, label_input=False):
         """
@@ -109,7 +111,12 @@ class Generator(nn.Module):
         labels = labels[:, 1:].contiguous().view(-1)  # (batch_size * seq_len)
 
         logits = logits[:, :-1, :].contiguous().view(-1, self.num_emb)  # (batch_size * seq_len, vocab_size)
-        loss = F.cross_entropy(logits, labels, ignore_index=-100)
+        # loss = F.cross_entropy(logits, labels, ignore_index=-100)
+        log_probs = F.log_softmax(logits, dim=-1)
+        log_probs = log_probs.view(-1, self.num_emb)
+        target = labels.view(-1)
+        one_hot = F.one_hot(target, num_classes=self.num_emb).float()
+        loss = -torch.sum(one_hot * log_probs) / (self.batch_size * self.sequence_length)
         return loss
 
     def pretrain_step(self, x):

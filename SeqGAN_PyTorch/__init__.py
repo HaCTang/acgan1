@@ -104,7 +104,7 @@ class ACSeqGAN(object):
         if 'GENERATED_NUM' in params:
             self.GENERATED_NUM = params['GENERATED_NUM']
         else:
-            self.GENERATED_NUM = 10000
+            self.GENERATED_NUM = 6400
 
         if 'PRE_EPOCH_NUM' in params:
             self.PRE_EPOCH_NUM = params['PRE_EPOCH_NUM']
@@ -123,11 +123,11 @@ class ACSeqGAN(object):
         if 'g_emb_dim' in params:
             self.g_emb_dim = params['g_emb_dim']
         else:
-            self.g_emb_dim = 30
+            self.g_emb_dim = 32
         if 'g_hidden_dim' in params:
             self.g_hidden_dim = params['g_hidden_dim']
         else:
-            self.g_hidden_dim = 32
+            self.g_hidden_dim = 64
         if 'g_class_hidden_dim' in params:
             self.g_class_emb_dim = params['g_class_hidden_dim']
         else:
@@ -589,7 +589,7 @@ class ACSeqGAN(object):
         generated_samples = []
 
         for _ in range(int(num / self.GEN_BATCH_SIZE)):
-            for class_label in range(self.NUM_CLASS - 1):
+            for class_label in range(0, self.NUM_CLASS):
                 class_label_tensor = torch.tensor([class_label] * self.GEN_BATCH_SIZE, dtype=torch.int64)
                 gen_x, _ = self.generator.generate(class_label_tensor)
                 for i in range(self.GEN_BATCH_SIZE):
@@ -635,7 +635,7 @@ class ACSeqGAN(object):
 
         if not hasattr(self, 'rollout'):
             self.rollout = Rollout(self.generator, 0.8, self.PAD_NUM)
-            self.rollout.g_embeddings = self.generator.emb
+            self.rollout.g_embeddings = self.generator.seq_emb
 
         if self.verbose:
             print('\nSTARTING TRAINING')
@@ -699,7 +699,9 @@ class ACSeqGAN(object):
                     samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
                     rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
                                                     batch_reward, self.LAMBDA_1)
-                    rewards_tensor = torch.tensor(rewards, device=self.generator.emb.weight.device)
+                    # rewards = self.generator.get_reward(samples, sample_labels, 16, self.discriminator, self.PAD_NUM,
+                    #                                 batch_reward, self.LAMBDA_1)
+                    rewards_tensor = torch.tensor(rewards, device=self.generator.seq_emb.weight.device)
                     # rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
                     g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
                     losses['G-loss'].append(g_loss)

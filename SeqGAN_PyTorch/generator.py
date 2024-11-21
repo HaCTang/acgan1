@@ -116,7 +116,7 @@ class Generator(nn.Module):
         """
         hidden = self.init_hidden(x.size(0))
         x = x.to(self.seq_emb.weight.device)
-        class_label = class_label.to(self.class_emb.weight.device)
+        class_label = class_label.to(self.seq_emb.weight.device)
         rewards = rewards.to(self.seq_emb.weight.device)
         hidden = tuple(h.to(self.seq_emb.weight.device) for h in hidden)
         logits, _, _ = self.forward(x, class_label, hidden, label_input=True)
@@ -161,7 +161,11 @@ class Generator(nn.Module):
         Generates a batch of samples along with their class labels.
         """
         seq_hidden = self.init_hidden(self.batch_size)
-        x = self.start_token.unsqueeze(1).to(self.seq_emb.weight.device)  # [batch_size, 1]
+        if label_input:
+            start_token = torch.mul(self.start_token, class_label) # (batch_size, )
+            x = start_token.unsqueeze(1).to(self.seq_emb.weight.device)  # [batch_size, 1]
+        else:
+            x = self.start_token.unsqueeze(1).to(self.seq_emb.weight.device)  # [batch_size, 1]
         if self.use_cuda:
             seq_hidden = tuple(h.cuda() for h in seq_hidden)
 

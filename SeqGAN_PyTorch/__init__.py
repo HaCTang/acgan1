@@ -576,7 +576,7 @@ class ACSeqGAN(object):
         self.PRETRAINED = True
         return
     
-    def generate_samples(self, num):
+    def generate_samples(self, num, label_input=False):
         """Generates molecules. Returns a list of samples, the same shape of self.positive_samples.
 
         Arguments
@@ -591,7 +591,7 @@ class ACSeqGAN(object):
         for _ in range(int(num / self.GEN_BATCH_SIZE)):
             for class_label in range(0, self.NUM_CLASS):
                 class_label_tensor = torch.tensor([class_label] * self.GEN_BATCH_SIZE, dtype=torch.int64)
-                gen_x, _ = self.generator.generate(class_label_tensor)
+                gen_x, _ = self.generator.generate(class_label_tensor, label_input)
                 for i in range(self.GEN_BATCH_SIZE):
                     generated_samples.append([gen_x[i].tolist(), class_label])
 
@@ -681,9 +681,9 @@ class ACSeqGAN(object):
                     return rewards * weights
 
             if nbatch % 10 == 0:
-                gen_samples = self.generate_samples(5*self.GENERATED_NUM)
+                gen_samples = self.generate_samples(5*self.GENERATED_NUM, label_input=False)
             else:
-                gen_samples = self.generate_samples(self.GENERATED_NUM)
+                gen_samples = self.generate_samples(self.GENERATED_NUM, label_input=True)
             self.gen_loader.create_batches(gen_samples)
             results['Batch'] = nbatch
             print('\nBatch n. {}'.format(nbatch))
@@ -717,7 +717,7 @@ class ACSeqGAN(object):
                 for i in range(self.DIS_EPOCHS):
                     print('Discriminator epoch {}...'.format(i + 1))
 
-                    negative_samples = self.generate_samples(self.POSITIVE_NUM)
+                    negative_samples = self.generate_samples(self.POSITIVE_NUM, label_input=True)
                     dis_x_train, dis_y_train = self.dis_loader.load_train_data(
                         self.positive_samples, negative_samples)
                     dis_batches = self.dis_loader.batch_iter(

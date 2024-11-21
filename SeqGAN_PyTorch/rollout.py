@@ -51,13 +51,13 @@ class Rollout(nn.Module):
         x = x.to(self.g_embeddings.weight.device)
         emb = self.g_embeddings(x).view(self.batch_size, self.sequence_length, self.seq_emb_dim)
 
-        # Embedding for class labels and expand to match sequence length
-        class_label = class_label.to(self.class_emb.weight.device)
-        class_emb = self.class_emb(class_label).unsqueeze(1).repeat(1, self.sequence_length, 1)  # (batch_size, 1, emb_dim)
-        class_emb = class_emb.expand(-1, self.sequence_length, -1)       # (batch_size, seq_len, emb_dim)
+        # # Embedding for class labels and expand to match sequence length
+        # class_label = class_label.to(self.class_emb.weight.device)
+        # class_emb = self.class_emb(class_label).unsqueeze(1).repeat(1, self.sequence_length, 1)  # (batch_size, 1, emb_dim)
+        # class_emb = class_emb.expand(-1, self.sequence_length, -1)       # (batch_size, seq_len, emb_dim)
         
-        # Concatenate token embeddings with class embeddings
-        self.processed_x = torch.cat([emb, class_emb], dim=-1).to(emb.device)  # (seq_len, batch_size, emb_dim+class_emb_dim)
+        # # Concatenate token embeddings with class embeddings
+        # self.processed_x = torch.cat([emb, class_emb], dim=-1).to(emb.device)  # (seq_len, batch_size, emb_dim+class_emb_dim)
 
         gen_x = []
         h_tm1 = (torch.zeros(self.batch_size, self.hidden_dim).to(x.device),
@@ -65,7 +65,8 @@ class Rollout(nn.Module):
         
         # When current index i < given_num, use the provided tokens as the input at each time step
         for i in range(given_num):
-            x_t = self.processed_x[:, i, :]
+            # x_t = self.processed_x[:, i, :]
+            x_t = emb[:, i, :]
             h_tm1 = self.g_recurrent_unit(x_t, h_tm1)
             gen_x.append(x[:, i])
 
@@ -75,12 +76,11 @@ class Rollout(nn.Module):
         # When current index i >= given_num, start roll-out, use the output at time step t as the input at time step t+1
         for i in range(given_num, self.sequence_length):
             if i == given_num:
-                x_t = self.processed_x[:, i, :]
+                x_t = emb[:, i, :]
             else:
                 next_token = next_token.unsqueeze(1)  # Ensure next_token has shape [batch_size, 1]
                 token_emb = self.g_embeddings(next_token).squeeze(1)  # [batch_size, emb_dim]
-                class_emb_current = class_emb[:, i, :]  # [batch_size, emb_dim]
-                x_t = torch.cat([token_emb, class_emb_current], dim=-1)  # [batch_size, emb_dim+class_emb_dim]
+                x_t = token_emb
             # print("22:", x_t.shape)
             h_tm1 = self.g_recurrent_unit(x_t, h_tm1)
             o_t = self.g_output_unit(h_tm1[0])  # logits not prob
@@ -158,7 +158,7 @@ class Rollout(nn.Module):
 
     def create_recurrent_unit(self):
         """Defines the recurrent process in the LSTM."""
-        return nn.LSTMCell(self.seq_emb_dim + self.class_emb_dim, self.hidden_dim)
+        return nn.LSTMCell(self.seq_emb_dim, self.hidden_dim)
 
     def create_output_unit(self):
         """Defines the output process in the LSTM."""
@@ -169,12 +169,13 @@ class Rollout(nn.Module):
         with torch.no_grad():
             self.g_embeddings = nn.Embedding.from_pretrained(self.lstm.seq_emb.weight.clone(), freeze=False).to(self.lstm.seq_emb.weight.device)
             self.class_emb = nn.Embedding.from_pretrained(self.lstm.class_emb.weight.clone(), freeze=False).to(self.lstm.class_emb.weight.device)
-            lstm_state_dict = self.lstm.lstm.state_dict()
+            lstm_state_dict = self.lstm.seq_lstm.state_dict()
             lstm_cell_state_dict = {
                 'weight_ih': lstm_state_dict['weight_ih_l0'],
                 'weight_hh': lstm_state_dict['weight_hh_l0'],
                 'bias_ih': lstm_state_dict['bias_ih_l0'],
                 'bias_hh': lstm_state_dict['bias_hh_l0']
             }
-            self.g_recurrent_unit.load_state_dict(lstm_cell_state_dict)
+            self.g_recurrent_unit.load_state_dict(lstm_cell_state_dict, strict=False)
             self.g_output_unit.load_state_dict(self.lstm.lin.state_dict())
+

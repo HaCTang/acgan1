@@ -66,7 +66,7 @@ class Generator(nn.Module):
         # else:
         #     start_token = torch.tensor([0] * self.batch_size, dtype=torch.long) # (batch_size, )
         # x = torch.cat([start_token.unsqueeze(1), x], dim=1)        
-        x_emb = self.seq_emb(x) # (batch_size, seq_len+1, emb_dim)
+        x_emb = self.seq_emb(x) # (batch_size, seq_len, emb_dim)
         seq_output, seq_hidden = self.seq_lstm(x_emb, seq_hidden)
         combined_output = seq_output
         logits = self.lin(combined_output.contiguous().view(-1, self.hidden_dim))

@@ -113,7 +113,7 @@ class ACSeqGAN(object):
         if 'NUM_CLASS' in params:
             self.NUM_CLASS = params['NUM_CLASS']
         else:
-            self.NUM_CLASS = 2
+            self.NUM_CLASS = 1
         if 'EPOCH_SAVES' in params:
             self.EPOCH_SAVES = params['EPOCH_SAVES']
         else:
@@ -566,6 +566,7 @@ class ACSeqGAN(object):
                     y_batch = torch.tensor(np.array(y_batch), dtype=torch.float)
                     x_label = torch.tensor(x_label, dtype=torch.int64)
 
+                    # x.shape = (batch_size, seq_len) y_batch.shape = (batch_size, 2)  x_label.shape = (batch_size, )
                     d_loss = self.discriminator.train_step(x, y_batch, x_label)
                     supervised_d_losses.append(d_loss)
 
@@ -635,7 +636,7 @@ class ACSeqGAN(object):
 
         if not hasattr(self, 'rollout'):
             self.rollout = Rollout(self.generator, 0.8, self.PAD_NUM)
-            self.rollout.g_embeddings = self.generator.seq_emb
+            self.rollout.seq_emb = self.generator.seq_emb
 
         if self.verbose:
             print('\nSTARTING TRAINING')
@@ -699,16 +700,13 @@ class ACSeqGAN(object):
                     samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
                     rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
                                                     batch_reward, self.LAMBDA_1)
-                    # rewards = self.generator.get_reward(samples, sample_labels, 16, self.discriminator, self.PAD_NUM,
-                    #                                 batch_reward, self.LAMBDA_1)
                     rewards_tensor = torch.tensor(rewards, device=self.generator.seq_emb.weight.device)
-                    # rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
                     g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
                     losses['G-loss'].append(g_loss)
                     # self.generator.g_count += 1
                     self.report_rewards(rewards, metric)
 
-            self.rollout.update_params()
+            self.rollout.update_params(self.generator)
 
             # generate for discriminator
             if self.LAMBDA_1 != 0:

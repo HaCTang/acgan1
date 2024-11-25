@@ -111,8 +111,8 @@ class DisDataIter(object):
         x_text = positive_examples + negative_examples
 
         # Generate labels
-        positive_labels = [[0,] for _ in positive_examples]
-        negative_labels = [[1,] for _ in negative_examples]
+        positive_labels = [[0, 1] for _ in positive_examples]
+        negative_labels = [[1, 0] for _ in negative_examples]
         y = np.concatenate([positive_labels, negative_labels], 0)
 
         return [x_text, y]

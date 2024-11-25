@@ -15,39 +15,6 @@ import torch.optim as optim
 from torch.autograd import Variable
 import torch.nn.functional as F
 
-
-# for it in range(self.g_iterations):
-#     for i in range(self.NUM_CLASS):
-#         samples, sample_labels = self.generator.generate(torch.tensor([i] * self.GEN_BATCH_SIZE))
-#         rewards = self.rollout.get_reward(samples, sample_labels, 16, self.discriminator, 
-#                                         batch_reward, self.LAMBDA_1)
-#         # rewards = self.generator.get_reward(samples, sample_labels, 16, self.discriminator, self.PAD_NUM,
-#         #                                 batch_reward, self.LAMBDA_1)
-#         rewards_tensor = torch.tensor(rewards, device=self.generator.seq_emb.weight.device)
-#         # rewards_tensor = rewards_tensor.mean(dim=1)  # Convert to desired form
-#         g_loss = self.generator.train_step(samples, sample_labels, rewards_tensor)
-#         losses['G-loss'].append(g_loss)
-#         # self.generator.g_count += 1
-#         self.report_rewards(rewards, metric)
-
-# self.rollout.update_params()
-
-# def batch_reward(samples, train_samples=None):
-#     """
-#     Calculate the reward for each sample in a batch.
-#     Args:
-#         samples: List of samples to calculate rewards for. (batch_size * seq_length)
-#     """
-# decoded = [mm.decode(sample, self.ord_dict)
-#             for sample in samples]
-# pct_unique = len(list(set(decoded))) / float(len(decoded))
-# rewards = reward_func(decoded, self.train_samples)
-# weights = np.array([pct_unique /
-#                     float(decoded.count(sample))
-#                     for sample in decoded])
-
-# return rewards * weights
-
 class Rollout(nn.Module):
     """
     Class for the rollout policy model.
@@ -58,6 +25,7 @@ class Rollout(nn.Module):
         lstm: LSTM model is Generator or WGenerator
         '''
         # Set parameters and define model architecture
+        generator = copy.deepcopy(generator)
         self.generator = generator
         self.update_rate = update_rate
         self.pad_num = pad_num
@@ -73,8 +41,9 @@ class Rollout(nn.Module):
 
         self.seq_emb = generator.seq_emb
         self.class_emb = generator.class_emb
-        self.lstm = generator.seq_lstm # nn.LSTM(seq_emb_dim, hidden_dim, num_layers=2, batch_first=True)
+        self.lstm = generator.seq_lstm # nn.LSTM(seq_emb_dim, hidden_dim, num_layers=1, batch_first=True)
         self.lin = generator.lin
+        
 
     def forward(self, x, class_label, given_num):
         """
@@ -97,27 +66,26 @@ class Rollout(nn.Module):
             token_emb = seq_emb[:, i, :].unsqueeze(1) # (batch_size, 1, seq_emb_dim)
             _, (h, c) = self.lstm(token_emb, (h, c))
             outputs.append(x[:, i])
+        token_emb = seq_emb[:, given_num-1, :].unsqueeze(1)
         for i in range(given_num, seq_len):
-            if i == given_num:
-                token_emb = seq_emb[:, i, :].unsqueeze(1) # (batch_size, 1, seq_emb_dim)
-            else:
-                # print("next_token:", next_token.shape)
-                token_emb = self.seq_emb(next_token).unsqueeze(1) # (batch_size, 1, seq_emb_dim)
             seq_output, (h, c) = self.lstm(token_emb, (h, c))
             logits = self.lin(seq_output.contiguous().view(-1, self.hidden_dim)) # (batch_size, vocab_size)
             logits = logits.view(batch_size, -1, self.vocab_size)
             probs = F.softmax(logits[:, -1, :], dim=-1)
             next_token = torch.multinomial(probs, 1).squeeze()
+            # next_token = torch.argmax(probs, dim=-1)
             outputs.append(next_token)
+            token_emb = self.seq_emb(next_token).unsqueeze(1) # (batch_size, 1, seq_emb_dim)
+
         outputs = torch.stack(outputs, dim=1)
-        first_pad_token = (outputs == self.pad_num).to(torch.long)
-        first_pad_token = torch.argmax(first_pad_token, dim=-1)
-        for i in range(first_pad_token.size(0)):
-            if first_pad_token[i] < self.sequence_length - 1:
-                outputs[i, first_pad_token[i]+1:] = self.pad_num
+        # first_pad_token = (outputs == self.pad_num).to(torch.long)
+        # first_pad_token = torch.argmax(first_pad_token, dim=-1)
+        # for i in range(first_pad_token.size(0)):
+        #     if first_pad_token[i] < self.sequence_length - 1:
+        #         outputs[i, first_pad_token[i]+1:] = self.pad_num
         return outputs
 
-    def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, Dweight1=0.5):
+    def get_reward(self, input_x, class_label, rollout_num, dis, reward_fn=None, Dweight1=1.0):
         """
         Calculates the rewards for a list of SMILES strings.
         Args:
@@ -128,80 +96,84 @@ class Rollout(nn.Module):
             Dweight1: (float) - Weight to assign to the discriminator output
                                 (1-Dweight1) is the weight assigned to the reward function output
         """
-        reward_weight1 = 1 - Dweight1
-        rewards = [np.zeros(input_x.size(0))] * (self.sequence_length)
+        reward_weight = 1 - Dweight1
+        rewards = np.zeros((input_x.size(0), self.sequence_length))
+        
         for i in range(rollout_num):
             already = []
             for given_num in range(1, self.sequence_length):
-                generated_seqs = self.forward(input_x, class_label, given_num).detach().to(dis.emb.weight.device)
+                # 生成rollout序列
+                generated_seqs = self.forward(input_x, class_label, given_num).detach()
                 gind = np.array(range(len(generated_seqs)))
                 
-                ypred_for_auc, _ = dis(generated_seqs.to(dis.emb.weight.device))
-                # [batch_size, 1] -> [batch_size,]
-                ypred_for_auc = ypred_for_auc.detach().cpu().numpy().reshape(-1)
-                ypred_ones = np.ones_like(ypred_for_auc)
+                # 判别器评分
+                dis_output, _ = dis(generated_seqs.to(dis.emb.weight.device))
+                # 使用softmax获取概率
+                dis_output = F.softmax(dis_output, dim=1)
+                dis_rewards = dis_output[:, 1].detach().cpu().numpy()  # 取第二维作为真实样本的概率
                 
                 if reward_fn:
-                    ypred = Dweight1 * (ypred_ones - ypred_for_auc)
-                    generated_seqs = generated_seqs.cpu().numpy()
-                    # Delete sequences that are already finished,
-                    # and add their rewards
-                    for k, r in reversed(already):
-                        generated_seqs = np.delete(generated_seqs, k, 0)
-                        gind = np.delete(gind, k, 0)
-                        ypred[k] += reward_weight1 * r
-
-                    # If there are still seqs, calculate rewards
-                    if generated_seqs.size:
-                        rew = reward_fn(generated_seqs)
-
-                    # Add the just calculated rewards                    
-                    for k, r in zip(gind, rew):
-                        ypred[k] += reward_weight1 * r
+                    dis_rewards = Dweight1 * dis_rewards
+                    generated_seqs_np = generated_seqs.cpu().numpy()
                     
-                    # Choose the seqs finished in the last iterations
+                    # 处理已完成的序列
+                    for k, r in reversed(already):
+                        generated_seqs_np = np.delete(generated_seqs_np, k, 0)
+                        gind = np.delete(gind, k, 0)
+                        dis_rewards[k] += reward_weight * r
+                    
+                    # 计算reward_fn奖励
+                    if generated_seqs_np.size:
+                        fn_rewards = reward_fn(generated_seqs_np)
+                        
+                    # 添加reward_fn奖励    
+                    for k, r in zip(gind, fn_rewards):
+                        dis_rewards[k] += reward_weight * r
+                    
+                    # 记录本轮完成的序列
                     for j, k in enumerate(gind):
-                        if input_x[k, given_num] == self.pad_num and input_x[k, given_num - 1] == self.pad_num:
-                            already.append((k, rew[j]))
+                        if input_x[k, given_num] == self.pad_num and input_x[k, given_num-1] == self.pad_num:
+                            already.append((k, fn_rewards[j]))
                     already = sorted(already, key=lambda el: el[0])
-
-                if i == 0:
-                    rewards[given_num - 1] = ypred
-                else:
-                    rewards[given_num - 1] += ypred
+                
+                rewards[:, given_num-1] += dis_rewards
             
-            ypred_for_auc, _ = dis(input_x.to(dis.emb.weight.device))
-            ypred_for_auc = ypred_for_auc.detach().cpu().numpy().reshape(-1)
-            ypred_ones = np.ones_like(ypred_for_auc)
+            # 计算最后一个时间步的奖励
+            dis_output, _ = dis(input_x.to(dis.emb.weight.device))
+            dis_output = F.softmax(dis_output, dim=1)
+            dis_rewards = dis_output[:, 1].detach().cpu().numpy()
             
             if reward_fn:
-                input_x_list = input_x.cpu().numpy()
-                ypred = Dweight1 * (ypred_ones - ypred_for_auc)
-                ypred += reward_weight1 * reward_fn(input_x_list)
-            else:
-                ypred = np.array([item for item in ypred_for_auc])
-            
-            if i == 0:
-                rewards[-1] = ypred
-            else:
-                rewards[-1] += ypred
+                input_x_np = input_x.cpu().numpy()
+                dis_rewards = Dweight1 * dis_rewards
+                fn_rewards = reward_fn(input_x_np)
+                dis_rewards += reward_weight * fn_rewards
+                
+            rewards[:, -1] += dis_rewards
         
-        rewards = np.transpose(np.array(rewards)) / (1.0 * rollout_num)  # batch_size x seq_length
+        # 平均每个rollout的奖励
+        rewards = rewards / rollout_num
         return rewards
 
 
-    def update_params(self):
+    def update_params(self, original_generator):
         """
         Updates all parameters in the rollout's LSTM. 
         Use update_rate to update the parameters 
         along with the generator's LSTM.
         """
-        with torch.no_grad():
-            for param, lstm_param in zip(self.parameters(), self.generator.parameters()):
-                param.data = self.update_rate * param.data + (1 - self.update_rate) * lstm_param.data
-        # for name, param in self.named_parameters():
-        #     if 'lstm' in name:
-        #         param.data = self.update_rate * param.data + (1 - self.update_rate) * self.generator.state_dict()[name].data
+        # with torch.no_grad():
+        #     for param, lstm_param in zip(self.parameters(), self.generator.parameters()):
+        #         param.data = self.update_rate * param.data + (1 - self.update_rate) * lstm_param.data'
+        # import pdb
+        # pdb.set_trace()
+        for name, param in self.named_parameters():
+            if 'lstm' in name:
+                # print(name, '.'.join(name.split('.')[1:]))
+                param.data = self.update_rate * param.data + (1 - self.update_rate) * original_generator.state_dict()['.'.join(name.split('.')[1:])].data
+            elif 'lin' in name:
+                # print(name, '.'.join(name.split('.')[1:]))
+                param.data = self.update_rate * param.data + (1 - self.update_rate) * original_generator.state_dict()['.'.join(name.split('.')[1:])].data
 
 
 # class Rollout(nn.Module):

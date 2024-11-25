@@ -16,7 +16,7 @@ class Discriminator(nn.Module):
     """
 
     def __init__(self, sequence_length, num_classes, vocab_size, emb_dim, filter_sizes, use_cuda,
-                 num_filters, dropout=0.2, l2_reg_lambda=0.001, wgan_reg_lambda=1.0, grad_clip=1.0):
+                 num_filters, dropout=0.2, l2_reg_lambda=0.0001, wgan_reg_lambda=1.0, grad_clip=1.0):
         super(Discriminator, self).__init__()
 
         self.sequence_length = sequence_length
@@ -48,7 +48,7 @@ class Discriminator(nn.Module):
         self.classifier = nn.Linear(sum(num_filters), num_classes)  # Class output
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
-        self.adversarial_loss = nn.BCEWithLogitsLoss()
+        self.adversarial_loss = nn.BCELoss()
         self.auxiliary_loss = F.cross_entropy
 
         if self.use_cuda:
@@ -87,7 +87,7 @@ class Discriminator(nn.Module):
         pred = self.dropout_layer(highway) # dropout
         real_fake_output = self.lin_real_fake(pred)
         # Real/Fake classification
-        # real_fake_output = torch.sigmoid(real_fake_output)  # Binary classification (real/fake)
+        real_fake_output = torch.sigmoid(real_fake_output)  # Binary classification (real/fake)
         # Class prediction
         # class_output = self.classifier(pred)  # Class classification (multiclass)
         # return real_fake_output, class_output
@@ -103,7 +103,7 @@ class Discriminator(nn.Module):
             class_pred: (N, num_classes) - Predictions for class classification
             class_target: (N, ) - Ground truth class labels
         """
-        # real_fake_loss = self.adversarial_loss(real_fake_pred, real_fake_target)
+        real_fake_loss = self.adversarial_loss(real_fake_pred, real_fake_target)
         # class_loss = self.auxiliary_loss(class_pred, class_target)
         
         l2_loss = 0
@@ -111,19 +111,19 @@ class Discriminator(nn.Module):
             l2_loss += torch.norm(param, p=2)
         l2_loss = self.l2_reg_lambda * l2_loss
 
-        # Wasserstein loss
-        if real_fake_target[0] == 1: #
-            wgan_loss = -torch.mean(real_fake_pred)
-        else:
-            wgan_loss = torch.mean(real_fake_pred)
-        wgan_loss = self.wgan_reg_lambda * wgan_loss
-
+        # # Wasserstein loss
+        # if real_fake_target[0] == 1: #
+        #     wgan_loss = -torch.mean(real_fake_pred)
+        # else:
+        #     wgan_loss = torch.mean(real_fake_pred)
+        # wgan_loss = self.wgan_reg_lambda * wgan_loss
+        total_loss = real_fake_loss + l2_loss
         # total_loss = 0.5 * (real_fake_loss + class_loss) + 0.5 * (l2_loss + wgan_loss)     
         # total_loss = class_loss + l2_loss + wgan_loss
-        total_loss = l2_loss + wgan_loss
+        # total_loss = l2_loss + wgan_loss
         # print("class_loss:", class_loss)
         # print("l2loss:", l2_loss)
-        # print("wloss:", wgan_loss)
+        # print("wloss:", real_fake_loss)
         return total_loss
 
     def train_step(self, x, real_fake_labels, class_labels, dropout=0.2):
